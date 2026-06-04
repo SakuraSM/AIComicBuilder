@@ -74,6 +74,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           protocol: provider.protocol,
+          capability: provider.capability,
           baseUrl: provider.baseUrl,
           apiKey: provider.apiKey,
         }),

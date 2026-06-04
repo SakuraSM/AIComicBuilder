@@ -1192,57 +1192,108 @@ async function handleShotSplitStream(
     referenceImagePrompts?: string[];
   };
 
-  // Process chunks concurrently
-  const chunkResults = await Promise.all(
-    sceneChunks.map(async (chunk, idx) => {
-      let prompt = buildShotSplitPrompt(chunk, characterDescriptions, characterVisualHints, undefined, characterPerformanceStyles.length > 0 ? characterPerformanceStyles : undefined);
+  function buildChunkPrompt(chunk: string): string {
+    let prompt = buildShotSplitPrompt(
+      chunk,
+      characterDescriptions,
+      characterVisualHints,
+      undefined,
+      characterPerformanceStyles.length > 0 ? characterPerformanceStyles : undefined
+    );
 
-      // Inject character relations (drives on-screen interaction framing)
-      if (relationsText) prompt += relationsText;
+    // Inject character relations (drives on-screen interaction framing)
+    if (relationsText) prompt += relationsText;
 
-      // Inject world setting
-      if (projData?.worldSetting) {
-        prompt = `【世界观设定】\n${projData.worldSetting}\n\n所有镜头必须与此世界观设定保持一致。\n\n` + prompt;
+    // Inject world setting
+    if (projData?.worldSetting) {
+      prompt = `【世界观设定】\n${projData.worldSetting}\n\n所有镜头必须与此世界观设定保持一致。\n\n` + prompt;
+    }
+
+    // Inject target duration
+    if (targetDuration && targetDuration > 0) {
+      prompt += `\n\n目标总时长：${targetDuration}秒（${Math.floor(targetDuration / 60)}分${targetDuration % 60}秒）。请确保所有镜头的时长之和接近此目标。\n`;
+    }
+
+    return prompt;
+  }
+
+  function countScenes(chunk: string): number {
+    return chunk.split("\n").filter((line) => sceneRe.test(line.trim())).length;
+  }
+
+  function parseShotSplitText(text: string): ParsedShot[] {
+    const parsed = JSON.parse(extractJSON(text));
+    // Handle multiple formats:
+    // 1. Scene-grouped: [{ sceneTitle, shots: [...] }]
+    // 2. Flat with wrapper: { shots: [...] }
+    // 3. Flat array: [{ sequence, ... }]
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].shots) {
+      return parsed.flatMap((scene: { sceneDescription?: string; shots?: ParsedShot[] }) =>
+        (scene.shots || []).map((shot) => ({
+          ...shot,
+          sceneDescription: shot.sceneDescription || scene.sceneDescription || "",
+        }))
+      );
+    }
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return parsed.shots || [];
+  }
+
+  async function generateShotSplitChunk(chunk: string, label: string): Promise<ParsedShot[]> {
+    const prompt = buildChunkPrompt(chunk);
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      prompt,
+      providerOptions: jsonMode,
+    });
+    const shotList = parseShotSplitText(result.text);
+    console.log(`[ShotSplit] Chunk ${label}: ${shotList.length} shots, keys: ${shotList[0] ? Object.keys(shotList[0]).join(",") : "empty"}`);
+    return shotList;
+  }
+
+  async function generateShotSplitChunkWithFallback(chunk: string, label: string): Promise<ParsedShot[]> {
+    try {
+      return await generateShotSplitChunk(chunk, label);
+    } catch (err) {
+      const sceneCount = countScenes(chunk);
+      console.error(`[ShotSplit] Chunk ${label} failed:`, err);
+
+      if (sceneCount <= 1) {
+        throw err;
       }
 
-      // Inject target duration
-      if (targetDuration && targetDuration > 0) {
-        prompt += `\n\n目标总时长：${targetDuration}秒（${Math.floor(targetDuration / 60)}分${targetDuration % 60}秒）。请确保所有镜头的时长之和接近此目标。\n`;
+      const smallerSceneLimit = Math.max(1, Math.floor(sceneCount / 2));
+      const smallerChunks = splitScriptByScenes(chunk, smallerSceneLimit);
+      if (smallerChunks.length <= 1) {
+        throw err;
       }
-      try {
-        const result = await generateText({
-          model,
-          system: systemPrompt,
-          prompt,
-          providerOptions: jsonMode,
-        });
-        const parsed = JSON.parse(extractJSON(result.text));
-        // Handle multiple formats:
-        // 1. Scene-grouped: [{ sceneTitle, shots: [...] }]
-        // 2. Flat with wrapper: { shots: [...] }
-        // 3. Flat array: [{ sequence, ... }]
-        let shotList: ParsedShot[];
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].shots) {
-          // Scene-grouped format — flatten shots and inherit scene description
-          shotList = parsed.flatMap((scene: { sceneDescription?: string; shots?: ParsedShot[] }) =>
-            (scene.shots || []).map((s) => ({
-              ...s,
-              sceneDescription: s.sceneDescription || scene.sceneDescription || "",
-            }))
-          );
-        } else if (Array.isArray(parsed)) {
-          shotList = parsed;
-        } else {
-          shotList = parsed.shots || [];
-        }
-        console.log(`[ShotSplit] Chunk ${idx + 1}/${sceneChunks.length}: ${shotList.length} shots, keys: ${shotList[0] ? Object.keys(shotList[0]).join(",") : "empty"}`);
-        return shotList as ParsedShot[];
-      } catch (err) {
-        console.error(`[ShotSplit] Chunk ${idx + 1} failed:`, err);
-        return [] as ParsedShot[];
+
+      console.warn(
+        `[ShotSplit] Retrying chunk ${label} as ${smallerChunks.length} smaller chunk(s) of ~${smallerSceneLimit} scenes`
+      );
+
+      const recoveredShots: ParsedShot[] = [];
+      for (let i = 0; i < smallerChunks.length; i++) {
+        recoveredShots.push(
+          ...(await generateShotSplitChunkWithFallback(smallerChunks[i], `${label}.${i + 1}`))
+        );
       }
-    })
-  );
+      return recoveredShots;
+    }
+  }
+
+  const chunkResults: ParsedShot[][] = [];
+  try {
+    for (let i = 0; i < sceneChunks.length; i++) {
+      chunkResults.push(await generateShotSplitChunkWithFallback(sceneChunks[i], `${i + 1}/${sceneChunks.length}`));
+    }
+  } catch (err) {
+    const message = extractErrorMessage(err);
+    return NextResponse.json({ error: `生成分镜失败：${message}` }, { status: 502 });
+  }
 
   // Merge and re-sequence
   const allShots = chunkResults.flat();
@@ -2795,7 +2846,7 @@ async function handleSingleVideoPrompt(
   // Reference mode: pass ALL scene reference frames (ordered) so multi-
   // scene shots (ground → sky etc.) get the full spatial context.
   const visionFrames: string[] = [];
-  let sceneMetaList: Array<{ sceneName?: string } | null> = [];
+  const sceneMetaList: Array<{ sceneName?: string } | null> = [];
   if (genMode === "reference") {
     const sceneAssets = shotView.referenceImages
       .filter((r) => r.fileUrl)

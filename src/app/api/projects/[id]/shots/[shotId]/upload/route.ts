@@ -6,11 +6,32 @@ import fs from "node:fs";
 import path from "node:path";
 import { id as genId } from "@/lib/id";
 import { assertProjectOwnership } from "@/lib/assert-project-ownership";
+import {
+  getActiveAsset,
+  insertAssetVersion,
+  type ShotAssetType,
+} from "@/lib/shot-asset-utils";
 
 const uploadDir = process.env.UPLOAD_DIR || "./uploads";
 
 const ALLOWED_FIELDS = ["firstFrame", "lastFrame", "sceneRefFrame", "reference_image"] as const;
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
+
+const UPLOAD_ASSET_TYPE_BY_FIELD = {
+  firstFrame: "first_frame",
+  lastFrame: "last_frame",
+  sceneRefFrame: "reference",
+} as const satisfies Record<Exclude<AllowedField, "reference_image">, ShotAssetType>;
+
+function isAllowedField(field: string): field is AllowedField {
+  return (ALLOWED_FIELDS as readonly string[]).includes(field);
+}
+
+function isUploadAssetField(
+  field: AllowedField
+): field is keyof typeof UPLOAD_ASSET_TYPE_BY_FIELD {
+  return field !== "reference_image";
+}
 
 export async function POST(
   request: Request,
@@ -34,7 +55,7 @@ export async function POST(
   if (!file || !field) {
     return NextResponse.json({ error: "Missing file or field" }, { status: 400 });
   }
-  if (!(ALLOWED_FIELDS as readonly string[]).includes(field)) {
+  if (!isAllowedField(field)) {
     return NextResponse.json({ error: "Invalid field" }, { status: 400 });
   }
 
@@ -47,15 +68,20 @@ export async function POST(
   fs.writeFileSync(filepath, buffer);
 
   // For reference_image uploads, just return the file path without updating a DB column
-  if (field === "reference_image") {
+  if (!isUploadAssetField(field)) {
     return NextResponse.json({ url: filepath });
   }
 
-  const [updated] = await db
-    .update(shots)
-    .set({ [field as AllowedField]: filepath })
-    .where(eq(shots.id, shotId))
-    .returning();
+  const assetType = UPLOAD_ASSET_TYPE_BY_FIELD[field];
+  const activeAsset = await getActiveAsset(shotId, assetType, 0);
+  const updated = await insertAssetVersion({
+    shotId,
+    type: assetType,
+    sequenceInType: 0,
+    prompt: activeAsset?.prompt ?? "",
+    fileUrl: filepath,
+    status: "completed",
+  });
 
   return NextResponse.json(updated);
 }

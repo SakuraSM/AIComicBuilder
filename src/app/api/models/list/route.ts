@@ -4,6 +4,7 @@ interface ListRequest {
   protocol: string;
   baseUrl: string;
   apiKey: string;
+  capability?: "text" | "image" | "video";
 }
 
 interface ModelItem {
@@ -12,7 +13,7 @@ interface ModelItem {
 }
 
 function buildModelsUrl(baseUrl: string): string {
-  let url = baseUrl.replace(/\/+$/, "");
+  const url = baseUrl.replace(/\/+$/, "");
   // If baseUrl already ends with /v1, don't duplicate
   if (url.endsWith("/v1")) {
     return url + "/models";
@@ -67,6 +68,18 @@ export async function POST(request: Request) {
     const body = (await request.json()) as ListRequest;
 
     if (body.protocol === "kling") {
+      if (body.capability === "image") {
+        return NextResponse.json({
+          models: [
+            { id: "kling-v1", name: "Kling v1 Image" },
+            { id: "kling-v1-5", name: "Kling v1.5 Image" },
+            { id: "kling-v2", name: "Kling v2 Image" },
+            { id: "kling-v2-new", name: "Kling v2 New Image" },
+            { id: "kling-v2-1", name: "Kling v2.1 Image" },
+          ],
+        });
+      }
+
       return NextResponse.json({
         models: [
           { id: "kling-v1", name: "Kling v1" },
@@ -78,6 +91,14 @@ export async function POST(request: Request) {
           { id: "kling-v2-master", name: "Kling v2 Master" },
           { id: "kling-v2-1-master", name: "Kling v2.1 Master" },
           { id: "kling-v2-5-turbo", name: "Kling v2.5 Turbo" },
+        ],
+      });
+    }
+
+    if (body.protocol === "seedance") {
+      return NextResponse.json({
+        models: [
+          { id: "doubao-seedance-1-5-pro-251215", name: "Seedance 1.5 Pro" },
         ],
       });
     }
