@@ -1,28 +1,36 @@
 import createMiddleware from "next-intl/middleware";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { routing } from "./i18n/routing";
-
-const COOKIE_NAME = "ai_comic_uid";
+import { getAuthCookieName, parseSessionCookie } from "@/lib/auth/session";
 
 const intlMiddleware = createMiddleware(routing);
+const PUBLIC_SEGMENTS = new Set(["login"]);
 
 export default function proxy(request: NextRequest) {
-  const response = intlMiddleware(request);
+  const pathname = request.nextUrl.pathname;
+  const [, maybeLocale, maybeSegment] = pathname.split("/");
+  const locale = routing.locales.includes(maybeLocale as "zh" | "en" | "ja" | "ko")
+    ? maybeLocale
+    : routing.defaultLocale;
+  const segment = maybeLocale === locale ? maybeSegment : maybeLocale;
+  const isPublicPage = PUBLIC_SEGMENTS.has(segment);
+  const hasSession = Boolean(parseSessionCookie(request.cookies.get(getAuthCookieName())?.value));
 
-  // Ensure ai_comic_uid cookie exists before any page renders.
-  // If missing, set a random UUID so server components can query by userId
-  // on the very first request. The client-side FingerprintProvider will
-  // later overwrite this with the real browser fingerprint if needed.
-  if (!request.cookies.get(COOKIE_NAME)) {
-    const uid = crypto.randomUUID().replace(/-/g, "");
-    response.cookies.set(COOKIE_NAME, uid, {
-      maxAge: 365 * 24 * 60 * 60,
-      path: "/",
-      sameSite: "lax",
-    });
+  if (!hasSession && !isPublicPage) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = `/${locale}/login`;
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  return response;
+  if (hasSession && isPublicPage) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = `/${locale}`;
+    homeUrl.search = "";
+    return NextResponse.redirect(homeUrl);
+  }
+
+  return intlMiddleware(request);
 }
 
 export const config = {

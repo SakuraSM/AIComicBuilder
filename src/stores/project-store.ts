@@ -201,6 +201,9 @@ interface Project {
   status: string;
   finalVideoUrl: string | null;
   generationMode: "keyframe" | "reference";
+  overallStyle?: string | null;
+  colorPalette?: string | null;
+  worldSetting?: string | null;
   characters: Character[];
   shots: Shot[];
   versions: StoryboardVersion[];

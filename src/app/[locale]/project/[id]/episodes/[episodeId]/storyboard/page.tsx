@@ -34,6 +34,8 @@ import {
   List,
   ChevronDown,
   GitCompare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { InlineModelPicker } from "@/components/editor/model-selector";
 import { VideoRatioPicker } from "@/components/editor/video-ratio-picker";
@@ -47,6 +49,8 @@ import { VersionCompare } from "@/components/editor/version-compare";
 import { PromptEditButton } from "@/components/prompt-templates/prompt-edit-button";
 import { AgentPicker } from "@/components/agent-picker";
 import Link from "next/link";
+
+const SHOTS_PER_PAGE = 8;
 
 export default function EpisodeStoryboardPage() {
   const t = useTranslations();
@@ -78,6 +82,7 @@ export default function EpisodeStoryboardPage() {
   const [lastBatchAction, setLastBatchAction] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [generatingRefPrompts, setGeneratingRefPrompts] = useState(false);
+  const [shotPageIndex, setShotPageIndex] = useState(0);
 
   const currentEpisodeId = useProjectStore((s) => s.currentEpisodeId);
   const episodeStoreEpisodes = useEpisodeStore((s) => s.episodes);
@@ -109,31 +114,6 @@ export default function EpisodeStoryboardPage() {
   const selectedVersionId = (_selectedVersionId && versions.some((v) => v.id === _selectedVersionId))
     ? _selectedVersionId
     : (versions[0]?.id ?? null);
-
-  const sceneGroups = useMemo(() => {
-    if (!project) return { groups: [], ungrouped: [] };
-
-    const groupMap = new Map<string, { sceneId: string; shots: typeof project.shots }>();
-    const ungrouped: typeof project.shots = [];
-
-    for (const shot of project.shots) {
-      if (shot.sceneId) {
-        const existing = groupMap.get(shot.sceneId);
-        if (existing) {
-          existing.shots.push(shot);
-        } else {
-          groupMap.set(shot.sceneId, { sceneId: shot.sceneId, shots: [shot] });
-        }
-      } else {
-        ungrouped.push(shot);
-      }
-    }
-
-    return {
-      groups: Array.from(groupMap.values()),
-      ungrouped,
-    };
-  }, [project?.shots]);
 
   if (!project) return null;
 
@@ -192,6 +172,39 @@ export default function EpisodeStoryboardPage() {
   const anyGenerating = generating || generatingFrames || generatingVideos || generatingSceneFrames || generatingRefImages || generatingVideoPrompts || generatingRefPrompts;
 
   const drawerShots = project.shots;
+  const shotPageCount = Math.max(1, Math.ceil(totalShots / SHOTS_PER_PAGE));
+  const clampedShotPageIndex = Math.min(shotPageIndex, shotPageCount - 1);
+  const visibleShotStart = clampedShotPageIndex * SHOTS_PER_PAGE;
+  const visibleShotEnd = Math.min(visibleShotStart + SHOTS_PER_PAGE, totalShots);
+  const visibleShots = project.shots.slice(visibleShotStart, visibleShotEnd);
+  const shotPageItems = Array.from({ length: shotPageCount }, (_, index) => {
+    const start = index * SHOTS_PER_PAGE + 1;
+    const end = Math.min((index + 1) * SHOTS_PER_PAGE, totalShots);
+    return { index, start, end };
+  });
+
+  const visibleSceneGroups = (() => {
+    const groupMap = new Map<string, { sceneId: string; shots: typeof visibleShots }>();
+    const ungrouped: typeof visibleShots = [];
+
+    for (const shot of visibleShots) {
+      if (shot.sceneId) {
+        const existing = groupMap.get(shot.sceneId);
+        if (existing) {
+          existing.shots.push(shot);
+        } else {
+          groupMap.set(shot.sceneId, { sceneId: shot.sceneId, shots: [shot] });
+        }
+      } else {
+        ungrouped.push(shot);
+      }
+    }
+
+    return {
+      groups: Array.from(groupMap.values()),
+      ungrouped,
+    };
+  })();
 
   async function handleGenerateShots() {
     if (!project) return;
@@ -1071,6 +1084,60 @@ export default function EpisodeStoryboardPage() {
         )}
       </div>
 
+      {viewMode === "list" && totalShots > SHOTS_PER_PAGE && !compareMode && (
+        <div className="sticky top-14 z-20 rounded-2xl border border-[--border-subtle] bg-white/95 p-3 shadow-sm backdrop-blur-xl">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="shrink-0 text-xs font-semibold text-[--text-muted]">
+                Shots {visibleShotStart + 1}-{visibleShotEnd} / {totalShots}
+              </span>
+              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
+                {shotPageItems.map((item) => {
+                  const isActive = item.index === clampedShotPageIndex;
+                  return (
+                    <button
+                      key={item.index}
+                      type="button"
+                      onClick={() => setShotPageIndex(item.index)}
+                      className={`h-8 shrink-0 rounded-lg px-3 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? "bg-primary text-white shadow-sm shadow-primary/20"
+                          : "bg-[--surface] text-[--text-secondary] hover:bg-primary/10 hover:text-primary"
+                      }`}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      #{item.start}-{item.end}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={() => setShotPageIndex(Math.max(0, clampedShotPageIndex - 1))}
+                disabled={clampedShotPageIndex === 0}
+                title="Previous shots"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={() => setShotPageIndex(Math.min(shotPageCount - 1, clampedShotPageIndex + 1))}
+                disabled={clampedShotPageIndex >= shotPageCount - 1}
+                title="Next shots"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Shot cards */}
       {compareMode ? (
         <VersionCompare
@@ -1136,15 +1203,15 @@ export default function EpisodeStoryboardPage() {
             />
           );
 
-          return sceneGroups.groups.length > 0 ? (
+          return visibleSceneGroups.groups.length > 0 ? (
             <div className="space-y-6">
-              {sceneGroups.groups.map((group, groupIndex) => (
+              {visibleSceneGroups.groups.map((group) => (
                 <div key={group.sceneId} className="space-y-3">
                   {/* Scene header */}
                   <div className="flex items-center gap-2 border-b pb-2 pt-4">
                     <Film className="h-4 w-4 text-[--text-muted]" />
                     <h3 className="text-sm font-medium">
-                      Scene {groupIndex + 1}
+                      Scene #{group.shots[0]?.sequence}-{group.shots[group.shots.length - 1]?.sequence}
                     </h3>
                     <span className="text-xs text-[--text-muted]">
                       {group.shots.length} {group.shots.length === 1 ? "shot" : "shots"}
@@ -1156,18 +1223,18 @@ export default function EpisodeStoryboardPage() {
               ))}
 
               {/* Ungrouped shots */}
-              {sceneGroups.ungrouped.length > 0 && (
+              {visibleSceneGroups.ungrouped.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 border-b pb-2 pt-4">
                     <h3 className="text-sm font-medium text-[--text-muted]">Other Shots</h3>
                   </div>
-                  {sceneGroups.ungrouped.map((shot) => renderShotCard(shot))}
+                  {visibleSceneGroups.ungrouped.map((shot) => renderShotCard(shot))}
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              {project.shots.map((shot) => renderShotCard(shot))}
+              {visibleShots.map((shot) => renderShotCard(shot))}
             </div>
           );
         })()

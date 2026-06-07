@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { projects, episodes, characters, shots, dialogues, storyboardVersions } from "@/lib/db/schema";
 import { eq, asc, and, desc } from "drizzle-orm";
-import { getUserIdFromRequest } from "@/lib/get-user-id";
 import { markDownstreamStale } from "@/lib/staleness";
+import { getCurrentUserFromRequest } from "@/lib/auth/session";
 
 async function resolveProject(id: string, userId: string) {
   const [project] = await db
@@ -18,8 +18,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = getUserIdFromRequest(request);
-  const project = await resolveProject(id, userId);
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const project = await resolveProject(id, user.id);
 
   if (!project) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -129,8 +130,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = getUserIdFromRequest(request);
-  const project = await resolveProject(id, userId);
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const project = await resolveProject(id, user.id);
 
   if (!project) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -144,13 +146,27 @@ export async function PATCH(
     status: "draft" | "processing" | "completed";
     generationMode: "keyframe" | "reference";
     useProjectPrompts: number;
+    overallStyle: string;
     colorPalette: string;
     worldSetting: string;
     targetDuration: number;
     bgmUrl: string;
   }>;
 
-  const { title, idea, script, outline, status, generationMode, useProjectPrompts, colorPalette, worldSetting, targetDuration, bgmUrl } = body;
+  const {
+    title,
+    idea,
+    script,
+    outline,
+    status,
+    generationMode,
+    useProjectPrompts,
+    overallStyle,
+    colorPalette,
+    worldSetting,
+    targetDuration,
+    bgmUrl,
+  } = body;
 
   const [updated] = await db
     .update(projects)
@@ -162,6 +178,7 @@ export async function PATCH(
       ...(status !== undefined && { status }),
       ...(generationMode !== undefined && { generationMode }),
       ...(useProjectPrompts !== undefined && { useProjectPrompts }),
+      ...(overallStyle !== undefined && { overallStyle }),
       ...(colorPalette !== undefined && { colorPalette }),
       ...(worldSetting !== undefined && { worldSetting }),
       ...(targetDuration !== undefined && { targetDuration }),
@@ -183,8 +200,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const userId = getUserIdFromRequest(request);
-  const project = await resolveProject(id, userId);
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const project = await resolveProject(id, user.id);
 
   if (!project) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

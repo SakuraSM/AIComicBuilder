@@ -3,6 +3,8 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { LogoIcon } from "@/components/logo";
 import Link from "next/link";
 import { Settings, Wand2 } from "lucide-react";
+import { getCurrentUserFromCookies } from "@/lib/auth/session";
+import { UserMenu } from "@/components/user-menu";
 
 export default async function DashboardLayout({
   children,
@@ -10,6 +12,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const t = await getTranslations("common");
+  const user = await getCurrentUserFromCookies();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -37,6 +40,7 @@ export default async function DashboardLayout({
             <Settings className="h-4 w-4" />
           </Link>
           <LanguageSwitcher />
+          {user && <UserMenu username={user.username} role={user.role} />}
         </div>
       </header>
       <main className="flex-1 bg-[--surface] p-6 lg:p-8">{children}</main>

@@ -2,17 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { shots } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import fs from "node:fs";
-import path from "node:path";
-import { id as genId } from "@/lib/id";
 import { assertProjectOwnership } from "@/lib/assert-project-ownership";
+import { putObject } from "@/lib/storage";
 import {
   getActiveAsset,
   insertAssetVersion,
   type ShotAssetType,
 } from "@/lib/shot-asset-utils";
-
-const uploadDir = process.env.UPLOAD_DIR || "./uploads";
 
 const ALLOWED_FIELDS = ["firstFrame", "lastFrame", "sceneRefFrame", "reference_image"] as const;
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
@@ -60,16 +56,16 @@ export async function POST(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = file.name.split(".").pop() || "png";
-  const filename = `${genId()}.${ext}`;
-  const dir = path.join(uploadDir, "frames");
-  fs.mkdirSync(dir, { recursive: true });
-  const filepath = path.join(dir, filename);
-  fs.writeFileSync(filepath, buffer);
+  const stored = await putObject({
+    buffer,
+    filename: file.name,
+    keyPrefix: `projects/${projectId}/shots/${shotId}/frames`,
+    contentType: file.type || undefined,
+  });
 
   // For reference_image uploads, just return the file path without updating a DB column
   if (!isUploadAssetField(field)) {
-    return NextResponse.json({ url: filepath });
+    return NextResponse.json({ url: stored.url });
   }
 
   const assetType = UPLOAD_ASSET_TYPE_BY_FIELD[field];
@@ -79,7 +75,7 @@ export async function POST(
     type: assetType,
     sequenceInType: 0,
     prompt: activeAsset?.prompt ?? "",
-    fileUrl: filepath,
+    fileUrl: stored.url,
     status: "completed",
   });
 

@@ -41,7 +41,7 @@ export async function dequeueTask(): Promise<
     .where(
       eq(
         tasks.id,
-        sql`(SELECT id FROM ${tasks} WHERE ${tasks.status} = 'pending' AND (${tasks.scheduledAt} IS NULL OR ${tasks.scheduledAt} <= ${now.getTime()}) ORDER BY ${tasks.createdAt} ASC LIMIT 1)`
+        sql`(SELECT id FROM ${tasks} WHERE ${tasks.status} = 'pending' AND (${tasks.scheduledAt} IS NULL OR ${tasks.scheduledAt} <= ${now}) ORDER BY ${tasks.createdAt} ASC LIMIT 1)`
       )
     )
     .returning();

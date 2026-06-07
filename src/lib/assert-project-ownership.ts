@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { getCurrentUserFromRequest } from "@/lib/auth/session";
 
 /**
  * Verify that the request's user owns the given project.
@@ -11,11 +11,11 @@ export async function assertProjectOwnership(
   request: Request,
   projectId: string
 ) {
-  const userId = getUserIdFromRequest(request);
-  if (!userId) return null;
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return null;
   const [project] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.userId, userId)));
+    .where(and(eq(projects.id, projectId), eq(projects.userId, user.id)));
   return project ?? null;
 }

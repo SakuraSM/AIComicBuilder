@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:20.20.1-alpine AS base
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -34,7 +34,10 @@ COPY --from=builder /app/drizzle ./drizzle
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_URL="file:/app/data/aicomic.db"
+ENV DATABASE_URL="postgres://postgres:postgres@postgres:5432/aicomic"
+ENV AUTH_COOKIE_NAME="ai_comic_session"
+ENV SESSION_TTL_DAYS="30"
+ENV STORAGE_DRIVER="local"
 ENV UPLOAD_DIR="/app/uploads"
 
 CMD ["node", "server.js"]

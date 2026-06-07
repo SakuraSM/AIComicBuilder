@@ -2,23 +2,25 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
-import { cookies } from "next/headers";
 import { ProjectCard } from "@/components/project-card";
 import { CreateProjectDialog } from "@/components/create-project-dialog";
-import { Clapperboard } from "lucide-react";
+import { Clapperboard, FolderKanban, Sparkles, Video } from "lucide-react";
+import { getCurrentUserFromCookies } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
   const t = await getTranslations("dashboard");
-  const cookieStore = await cookies();
-  const userId = cookieStore.get("ai_comic_uid")?.value ?? "";
+  const user = await getCurrentUserFromCookies();
+  if (!user) redirect("/login");
 
-  const allProjects = userId
-    ? await db
-        .select()
-        .from(projects)
-        .where(eq(projects.userId, userId))
-        .orderBy(desc(projects.createdAt))
-    : [];
+  const allProjects = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.userId, user.id))
+    .orderBy(desc(projects.createdAt));
+
+  const completedCount = allProjects.filter((project) => project.status === "completed").length;
+  const processingCount = allProjects.filter((project) => project.status === "processing").length;
 
   return (
     <div className="animate-page-in space-y-6">
@@ -32,15 +34,37 @@ export default async function DashboardPage() {
             <h2 className="font-display text-xl font-bold tracking-tight text-[--text-primary]">
               {t("title")}
             </h2>
-            {allProjects.length > 0 && (
-              <p className="text-xs text-[--text-muted]">
-                {allProjects.length}{" "}
-                {allProjects.length === 1 ? "project" : "projects"}
-              </p>
-            )}
+            <p className="text-xs text-[--text-muted]">
+              {user.username} · {allProjects.length}{" "}
+              {allProjects.length === 1 ? "project" : "projects"}
+            </p>
           </div>
         </div>
         <CreateProjectDialog />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-[--border-subtle] bg-white p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-[--text-muted]">
+            <FolderKanban className="h-4 w-4 text-primary" />
+            Projects
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[--text-primary]">{allProjects.length}</div>
+        </div>
+        <div className="rounded-xl border border-[--border-subtle] bg-white p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-[--text-muted]">
+            <Sparkles className="h-4 w-4 text-[--warning]" />
+            Processing
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[--text-primary]">{processingCount}</div>
+        </div>
+        <div className="rounded-xl border border-[--border-subtle] bg-white p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-[--text-muted]">
+            <Video className="h-4 w-4 text-[--success]" />
+            Completed
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[--text-primary]">{completedCount}</div>
+        </div>
       </div>
 
       {allProjects.length === 0 ? (

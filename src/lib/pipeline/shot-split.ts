@@ -55,6 +55,7 @@ export async function handleShotSplit(task: Task) {
 
   // Fetch color palette from project or episode
   let colorPalette = "";
+  const overallStyle = project?.overallStyle ?? "";
   let targetDuration = project?.targetDuration || 0;
   if (payload.episodeId) {
     const [episode] = await db.select().from(episodes).where(eq(episodes.id, payload.episodeId));
@@ -75,7 +76,14 @@ export async function handleShotSplit(task: Task) {
     .filter(c => c.performanceStyle)
     .map(c => ({ name: c.name, performanceStyle: c.performanceStyle! }));
 
-  let userPrompt = buildShotSplitPrompt(payload.screenplay, characterDescriptions, undefined, colorPalette || undefined, performanceStyles.length > 0 ? performanceStyles : undefined) + relationsText;
+  let userPrompt = buildShotSplitPrompt(
+    payload.screenplay,
+    characterDescriptions,
+    undefined,
+    colorPalette || undefined,
+    performanceStyles.length > 0 ? performanceStyles : undefined,
+    overallStyle || undefined
+  ) + relationsText;
 
   // Inject world setting
   if (project?.worldSetting) {
