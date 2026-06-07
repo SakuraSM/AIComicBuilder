@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Loader2, LogIn, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoIcon } from "@/components/logo";
 
-const DEFAULT_ERROR = "Login failed. Check your account and password.";
-
 export default function LoginPage() {
   const locale = useLocale();
+  const t = useTranslations("login");
   const searchParams = useSearchParams();
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -37,12 +36,12 @@ export default function LoginPage() {
         body: JSON.stringify({ login, password }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error || DEFAULT_ERROR);
+        await response.json().catch(() => null);
+        throw new Error(t("defaultError"));
       }
       window.location.assign(nextPath);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : DEFAULT_ERROR);
+      setError(caughtError instanceof Error ? caughtError.message : t("defaultError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -59,13 +58,13 @@ export default function LoginPage() {
             <h1 className="font-display text-xl font-semibold text-[--text-primary]">
               AIComicBuilder
             </h1>
-            <p className="text-sm text-[--text-muted]">Sign in to your studio workspace.</p>
+            <p className="text-sm text-[--text-muted]">{t("subtitle")}</p>
           </div>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="login">Email or username</Label>
+            <Label htmlFor="login">{t("loginLabel")}</Label>
             <Input
               id="login"
               name="login"
@@ -78,7 +77,7 @@ export default function LoginPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("passwordLabel")}</Label>
             <Input
               id="password"
               name="password"
@@ -100,13 +99,13 @@ export default function LoginPage() {
 
           <Button type="submit" className="w-full" disabled={isSubmitting || !login || !password}>
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            Sign in
+            {t("signIn")}
           </Button>
         </form>
 
         <div className="mt-5 flex items-start gap-2 rounded-xl bg-[--surface] p-3 text-xs text-[--text-muted]">
           <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          Accounts are created by an administrator for this private deployment.
+          {t("privateNotice")}
         </div>
       </div>
     </main>

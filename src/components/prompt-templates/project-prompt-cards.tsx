@@ -140,11 +140,11 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
       setOverallStyle(projData.overallStyle ?? "");
       setOverallStyleDraft(projData.overallStyle ?? "");
     } catch {
-      toast.error("Load failed");
+      toast.error(t("editor.loadDataFailed"));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     loadData();
@@ -187,7 +187,7 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
         toast.success(t("editor.resetSuccess"));
       }
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     }
   };
 
@@ -204,7 +204,7 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
       setOverallStyleDraft(value);
       toast.success(t("project.overallStyleSaved"));
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     } finally {
       setIsSavingStyle(false);
     }
@@ -228,7 +228,7 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
       setOverrides(overData);
       toast.success(t("editor.resetSuccess"));
     } catch {
-      toast.error("Failed");
+      toast.error(t("editor.resetFailed"));
     } finally {
       setDeletingKey(null);
     }

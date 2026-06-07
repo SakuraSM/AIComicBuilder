@@ -104,7 +104,7 @@ export default function EpisodesPage({
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Merge failed");
+        throw new Error(err.error || t("mergeError"));
       }
       const data = await res.json();
       setMergedVideoUrl(data.videoUrl);

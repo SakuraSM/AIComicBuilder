@@ -81,7 +81,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setFetchError(data.error || "Failed to fetch models");
+        setFetchError(data.error || t("fetchModelsFailed"));
         return;
       }
       const models = data.models.map((m: { id: string; name: string }) => ({
@@ -91,7 +91,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
       }));
       setModels(provider.id, models);
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Network error");
+      setFetchError(err instanceof Error ? err.message : t("networkError"));
     } finally {
       setFetching(false);
     }
@@ -115,7 +115,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
             onChange={(e) =>
               updateProvider(provider.id, { name: e.target.value })
             }
-            placeholder="e.g. DeepSeek, OpenRouter..."
+            placeholder={t("providerNamePlaceholder")}
           />
         </div>
         <div className="space-y-1.5">
@@ -148,7 +148,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
       {isKling ? (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs">Base URL</Label>
+            <Label className="text-xs">{t("baseUrl")}</Label>
             <Input
               value={provider.baseUrl}
               onChange={(e) =>
@@ -159,7 +159,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Access Key (AK)</Label>
+              <Label className="text-xs">{t("accessKey")}</Label>
               <div className="relative">
                 <Input
                   type={showKey ? "text" : "password"}
@@ -167,7 +167,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
                   onChange={(e) =>
                     updateProvider(provider.id, { apiKey: e.target.value })
                   }
-                  placeholder="Access Key..."
+                  placeholder={t("accessKeyPlaceholder")}
                   className="pr-10"
                 />
                 <button
@@ -180,7 +180,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Secret Key (SK)</Label>
+              <Label className="text-xs">{t("secretKey")}</Label>
               <div className="relative">
                 <Input
                   type={showSecretKey ? "text" : "password"}
@@ -188,7 +188,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
                   onChange={(e) =>
                     updateProvider(provider.id, { secretKey: e.target.value })
                   }
-                  placeholder="Secret Key..."
+                  placeholder={t("secretKeyPlaceholder")}
                   className="pr-10"
                 />
                 <button
@@ -205,7 +205,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Base URL</Label>
+            <Label className="text-xs">{t("baseUrl")}</Label>
             <Input
               value={provider.baseUrl}
               onChange={(e) =>
@@ -215,7 +215,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">API Key</Label>
+            <Label className="text-xs">{t("apiKey")}</Label>
             <div className="relative">
               <Input
                 type={showKey ? "text" : "password"}
@@ -317,7 +317,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
               <div className="max-h-56 overflow-y-auto p-1.5">
                 {filtered.length === 0 ? (
                   <p className="py-4 text-center text-xs text-[--text-muted]">
-                    No models found
+                    {t("noModelsFound")}
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2 lg:grid-cols-3">

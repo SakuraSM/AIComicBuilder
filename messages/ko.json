@@ -18,7 +18,14 @@
     "batchPartialFailed": "일부 항목 생성에 실패했습니다. 나중에 다시 시도해 주세요.",
     "promptTemplates": "프롬프트 관리",
     "upload": "업로드",
-    "uploadFailed": "업로드에 실패했습니다. 다시 시도해 주세요."
+    "uploadFailed": "업로드에 실패했습니다. 다시 시도해 주세요.",
+    "loadFailed": "불러오기에 실패했습니다",
+    "saveFailed": "저장에 실패했습니다",
+    "resetFailed": "초기화에 실패했습니다",
+    "operationFailed": "작업에 실패했습니다",
+    "validationFailed": "검증에 실패했습니다",
+    "networkError": "네트워크 오류입니다. 잠시 후 다시 시도해 주세요.",
+    "logout": "로그아웃"
   },
   "dashboard": {
     "title": "내 프로젝트",
@@ -30,7 +37,8 @@
       "draft": "초안",
       "processing": "처리 중",
       "completed": "완료"
-    }
+    },
+    "projectTitlePlaceholder": "예: 사이버 히어로"
   },
   "project": {
     "title": "프로젝트 제목",
@@ -95,7 +103,15 @@
     "kanbanBatchGenerate": "일괄 생성 ({count})",
     "continueFromPrev": "이전 회차 이어서",
     "continueFromPrevTooltip": "이전 회차의 마지막 프레임을 첫 프레임으로 사용",
-    "prevEpisodeNoFrames": "이전 회차에 생성된 프레임이 없습니다"
+    "prevEpisodeNoFrames": "이전 회차에 생성된 프레임이 없습니다",
+    "generatingOutlineFirst": "먼저 개요를 생성하는 중...",
+    "batchGenerateSuccess": "{total}개 샷이 완료되었습니다",
+    "batchGenerateFailed": "{failed}/{total}개 샷이 실패했습니다",
+    "retryAllSucceeded": "모든 재시도가 성공했습니다",
+    "retryStillFailing": "{count}개 샷이 여전히 실패 중입니다",
+    "retryFailed": "{count}개 실패 항목 재시도",
+    "failedCount": "{count}개 실패",
+    "switchModeFailed": "생성 모드 전환에 실패했습니다"
   },
   "character": {
     "name": "캐릭터 이름",
@@ -183,7 +199,12 @@
     "dof": "피사계 심도",
     "sfx": "효과음",
     "music": "음악",
-    "shot": "샷"
+    "shot": "샷",
+    "copyImagePrompt": "이미지 프롬프트 복사",
+    "openEditor": "편집기 열기",
+    "cameraDirectionPlaceholder": "예: static / pan-left / zoom-in ...",
+    "saveAssetsFailed": "에셋 저장에 실패했습니다",
+    "switchVersionFailed": "버전 전환에 실패했습니다"
   },
   "storyboard": {
     "stale": "업데이트 필요",
@@ -192,7 +213,21 @@
     "generateRefPrompts": "참고 이미지 프롬프트 생성",
     "batchGenerateRefImages": "참고 이미지 일괄 생성",
     "needTwoVersions": "비교하려면 2개 이상의 버전이 필요합니다",
-    "noFrame": "프레임 없음"
+    "noFrame": "프레임 없음",
+    "generateKeyframePrompts": "키프레임 프롬프트 생성",
+    "generateKeyframePromptsTitle": "기존 샷 메타데이터로 첫/마지막 프레임 이미지 프롬프트를 생성합니다",
+    "refPromptsFailed": "참조 프롬프트 생성에 실패했습니다",
+    "referenceImagesFailed": "{count}장 참조 이미지가 실패했습니다",
+    "referenceImagesGenerated": "{count}장 참조 이미지를 생성했습니다",
+    "noPendingReferenceImages": "생성할 참조 이미지가 없습니다",
+    "batchReferenceImagesFailed": "참조 이미지 일괄 생성에 실패했습니다",
+    "previousShots": "이전 샷",
+    "nextShots": "다음 샷",
+    "otherShots": "다른 샷",
+    "shotRange": "샷 {start}-{end} / {total}",
+    "refPromptsGenerated": "{updated}/{total}개 샷의 참조 이미지 프롬프트를 생성했습니다",
+    "keyframePromptsGenerated": "{updated}/{total}개 샷의 키프레임 프롬프트를 생성했습니다",
+    "keyframePromptsFailed": "키프레임 프롬프트 생성에 실패했습니다"
   },
   "episode": {
     "title": "에피소드 관리",
@@ -305,7 +340,7 @@
     "videoModels": "비디오 모델",
     "promptTemplates": "프롬프트 관리",
     "promptTemplatesDesc": "AI 생성 프롬프트 템플릿 커스터마이즈",
-    "agents": "Agents",
+    "agents": "에이전트",
     "agentPlatform": "Platform",
     "agentPlatform_bailian": "Bailian",
     "agentPlatform_dify": "Dify",
@@ -328,7 +363,17 @@
     "agentDescription": "설명",
     "agentDescriptionPlaceholder": "선택사항: 에이전트 용도 설명",
     "noAgents": "아직 에이전트가 없습니다. 위 버튼을 클릭하여 추가하세요.",
-    "defaultAgent": "기본값"
+    "defaultAgent": "기본값",
+    "newProvider": "새 제공자",
+    "providerNamePlaceholder": "예: DeepSeek, OpenRouter...",
+    "fetchModelsFailed": "모델 목록을 가져오지 못했습니다",
+    "noModelsFound": "일치하는 모델이 없습니다",
+    "baseUrl": "Base URL",
+    "accessKey": "Access Key (AK)",
+    "secretKey": "Secret Key (SK)",
+    "apiKey": "API Key",
+    "accessKeyPlaceholder": "Access Key...",
+    "secretKeyPlaceholder": "Secret Key..."
   },
   "promptTemplates": {
     "title": "프롬프트 관리",
@@ -392,7 +437,13 @@
       "savedSuccess": "프롬프트가 저장되었습니다",
       "resetSuccess": "기본값으로 초기화되었습니다",
       "slots": "슬롯",
-      "slotsCount": "슬롯 {count}개"
+      "slotsCount": "슬롯 {count}개",
+      "loadFailed": "프롬프트 템플릿을 불러오지 못했습니다",
+      "loadDataFailed": "프롬프트 데이터를 불러오지 못했습니다",
+      "saveFailed": "저장에 실패했습니다",
+      "resetFailed": "초기화에 실패했습니다",
+      "validationFailed": "프롬프트 검증에 실패했습니다",
+      "loading": "불러오는 중..."
     },
     "editPrompt": "프롬프트",
     "project": {
@@ -436,7 +487,11 @@
       "anime": "애니메이션",
       "animeDesc": "애니메이션/만화 생성에 최적화",
       "minimal": "미니멀",
-      "minimalDesc": "간결한 프롬프트, 토큰 절약"
+      "minimalDesc": "간결한 프롬프트, 토큰 절약",
+      "loadFailed": "프리셋을 불러오지 못했습니다",
+      "applyFailed": "프리셋 적용에 실패했습니다",
+      "deleteFailed": "프리셋 삭제에 실패했습니다",
+      "saveFailed": "프리셋 저장에 실패했습니다"
     },
     "versions": {
       "title": "버전 기록",
@@ -538,5 +593,38 @@
       "durationStrategy": "길이 전략",
       "durationStrategyDesc": "샷 길이에 따른 묘사 세분화 규칙"
     }
+  },
+  "login": {
+    "title": "로그인",
+    "subtitle": "스튜디오 작업 공간에 로그인하세요.",
+    "loginLabel": "이메일 또는 사용자 이름",
+    "passwordLabel": "비밀번호",
+    "signIn": "로그인",
+    "privateNotice": "이 비공개 배포 환경의 계정은 관리자가 생성합니다.",
+    "defaultError": "로그인에 실패했습니다. 계정과 비밀번호를 확인하세요."
+  },
+  "admin": {
+    "title": "관리",
+    "refresh": "새로고침",
+    "createUser": "사용자 생성",
+    "email": "이메일",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "role": "역할",
+    "userRole": "일반 사용자",
+    "adminRole": "관리자",
+    "activeStatus": "활성",
+    "disabledStatus": "비활성",
+    "create": "생성",
+    "users": "사용자",
+    "accountsCount": "{count}개 계정",
+    "projectsCount": "{count}개 프로젝트",
+    "toggleRole": "역할 전환",
+    "disable": "비활성화",
+    "enable": "활성화",
+    "resetPassword": "비밀번호 재설정",
+    "newPasswordPrompt": "새 비밀번호(8자 이상)",
+    "loadFailed": "사용자 목록을 불러오지 못했습니다",
+    "createFailed": "사용자 생성에 실패했습니다"
   }
 }

@@ -288,7 +288,7 @@ export function CharacterCard({
                 variant="outline"
                 size="sm"
                 className="shrink-0 px-2.5"
-                title="Copy image prompt"
+                title={t("shot.copyImagePrompt")}
                 onClick={async () => {
                   const prompt = buildCharacterTurnaroundPrompt(editDesc || editName, editName);
                   await navigator.clipboard.writeText(prompt);

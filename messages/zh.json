@@ -18,7 +18,14 @@
     "batchPartialFailed": "部分项目生成失败，请稍后重试",
     "promptTemplates": "提示词管理",
     "upload": "上传",
-    "uploadFailed": "上传失败，请重试"
+    "uploadFailed": "上传失败，请重试",
+    "loadFailed": "加载失败",
+    "saveFailed": "保存失败",
+    "resetFailed": "重置失败",
+    "operationFailed": "操作失败",
+    "validationFailed": "校验失败",
+    "networkError": "网络错误，请稍后重试",
+    "logout": "退出登录"
   },
   "dashboard": {
     "title": "我的项目",
@@ -30,7 +37,8 @@
       "draft": "草稿",
       "processing": "处理中",
       "completed": "已完成"
-    }
+    },
+    "projectTitlePlaceholder": "例如：赛博侠影"
   },
   "project": {
     "title": "项目标题",
@@ -96,7 +104,14 @@
     "kanbanBatchGenerate": "批量生成 ({count})",
     "continueFromPrev": "续上集",
     "continueFromPrevTooltip": "使用上一集最后一帧作为本集首帧",
-    "prevEpisodeNoFrames": "上一集尚未生成帧，无法续接"
+    "prevEpisodeNoFrames": "上一集尚未生成帧，无法续接",
+    "batchGenerateSuccess": "已完成 {total} 个分镜",
+    "batchGenerateFailed": "{failed}/{total} 个分镜生成失败",
+    "retryAllSucceeded": "重试已全部成功",
+    "retryStillFailing": "仍有 {count} 个分镜失败",
+    "retryFailed": "重试 {count} 个失败项",
+    "failedCount": "{count} 个失败",
+    "switchModeFailed": "生成模式切换失败"
   },
   "character": {
     "name": "角色名",
@@ -168,9 +183,8 @@
     "refImagePrompt": "参考图提示词...",
     "noRefImages": "暂无参考图提示词",
     "noKeyframes": "暂无首尾帧提示词",
-    "refChars": "镜头角色",
-    "generateRefImages": "生成参考图",
     "refChars": "角色",
+    "generateRefImages": "生成参考图",
     "regenerateRefImages": "重新生成参考图",
     "maxRefImages": "最多9张参考图",
     "transition": "转场",
@@ -185,7 +199,12 @@
     "dof": "景深",
     "sfx": "音效",
     "music": "音乐",
-    "shot": "镜头"
+    "shot": "镜头",
+    "copyImagePrompt": "复制图像提示词",
+    "openEditor": "打开编辑器",
+    "cameraDirectionPlaceholder": "例如 static / pan-left / zoom-in ...",
+    "saveAssetsFailed": "素材保存失败",
+    "switchVersionFailed": "版本切换失败"
   },
   "storyboard": {
     "stale": "需要更新",
@@ -194,7 +213,21 @@
     "generateRefPrompts": "生成参考图提示词",
     "batchGenerateRefImages": "批量生成参考图",
     "needTwoVersions": "至少需要2个版本才能对比",
-    "noFrame": "暂无画面"
+    "noFrame": "暂无画面",
+    "generateKeyframePrompts": "生成首尾帧提示词",
+    "generateKeyframePromptsTitle": "基于已有镜头元数据生成首尾帧图像提示词",
+    "refPromptsFailed": "参考提示词生成失败",
+    "referenceImagesFailed": "{count} 张参考图生成失败",
+    "referenceImagesGenerated": "已生成 {count} 张参考图",
+    "noPendingReferenceImages": "暂无待生成的参考图",
+    "batchReferenceImagesFailed": "批量参考图生成失败",
+    "previousShots": "上一组分镜",
+    "nextShots": "下一组分镜",
+    "otherShots": "其他分镜",
+    "shotRange": "分镜 {start}-{end} / {total}",
+    "refPromptsGenerated": "已生成 {updated}/{total} 个镜头的参考图提示词",
+    "keyframePromptsGenerated": "已生成 {updated}/{total} 个镜头的首尾帧提示词",
+    "keyframePromptsFailed": "生成首尾帧提示词失败"
   },
   "episode": {
     "title": "分集管理",
@@ -307,7 +340,7 @@
     "videoModels": "视频模型",
     "promptTemplates": "提示词管理",
     "promptTemplatesDesc": "自定义 AI 生成提示词模板",
-    "agents": "Agents",
+    "agents": "智能体",
     "agentPlatform": "平台",
     "agentPlatform_bailian": "百炼",
     "agentPlatform_dify": "Dify",
@@ -330,7 +363,17 @@
     "agentDescription": "描述",
     "agentDescriptionPlaceholder": "可选：描述智能体用途",
     "noAgents": "暂无智能体，点击上方按钮添加",
-    "defaultAgent": "默认"
+    "defaultAgent": "默认",
+    "newProvider": "新服务商",
+    "providerNamePlaceholder": "例如 DeepSeek、OpenRouter...",
+    "fetchModelsFailed": "模型列表拉取失败",
+    "noModelsFound": "未找到匹配模型",
+    "baseUrl": "Base URL（接口地址）",
+    "accessKey": "Access Key（AK）",
+    "secretKey": "Secret Key（SK）",
+    "apiKey": "API Key（密钥）",
+    "accessKeyPlaceholder": "请输入 Access Key",
+    "secretKeyPlaceholder": "请输入 Secret Key"
   },
   "promptTemplates": {
     "title": "提示词管理",
@@ -394,7 +437,13 @@
       "savedSuccess": "提示词已保存",
       "resetSuccess": "已恢复默认",
       "slots": "插槽",
-      "slotsCount": "{count} 个插槽"
+      "slotsCount": "{count} 个插槽",
+      "loadFailed": "提示词模板加载失败",
+      "loadDataFailed": "提示词数据加载失败",
+      "saveFailed": "提示词保存失败",
+      "resetFailed": "恢复默认失败",
+      "validationFailed": "提示词校验失败",
+      "loading": "加载中..."
     },
     "editPrompt": "提示词",
     "project": {
@@ -438,7 +487,11 @@
       "anime": "动漫风",
       "animeDesc": "优化动漫/漫画生成",
       "minimal": "简洁高效",
-      "minimalDesc": "精简提示词，节省 token"
+      "minimalDesc": "精简提示词，节省 token",
+      "loadFailed": "预设加载失败",
+      "applyFailed": "预设应用失败",
+      "deleteFailed": "预设删除失败",
+      "saveFailed": "预设保存失败"
     },
     "versions": {
       "title": "版本历史",
@@ -540,5 +593,38 @@
       "durationStrategy": "时长策略",
       "durationStrategyDesc": "按镜头时长分级的描述颗粒度规则"
     }
+  },
+  "login": {
+    "title": "登录创作工作台",
+    "subtitle": "登录你的漫画创作工作台。",
+    "loginLabel": "邮箱或用户名",
+    "passwordLabel": "密码",
+    "signIn": "登录",
+    "privateNotice": "账号由管理员创建，适用于私有部署。",
+    "defaultError": "登录失败，请检查账号和密码。"
+  },
+  "admin": {
+    "title": "后台管理",
+    "refresh": "刷新",
+    "createUser": "创建用户",
+    "email": "邮箱",
+    "username": "用户名",
+    "password": "密码",
+    "role": "角色",
+    "userRole": "普通用户",
+    "adminRole": "管理员",
+    "activeStatus": "启用",
+    "disabledStatus": "禁用",
+    "create": "创建",
+    "users": "用户",
+    "accountsCount": "{count} 个账号",
+    "projectsCount": "{count} 个项目",
+    "toggleRole": "切换角色",
+    "disable": "禁用",
+    "enable": "启用",
+    "resetPassword": "重置密码",
+    "newPasswordPrompt": "请输入新密码（至少 8 位）",
+    "loadFailed": "用户列表加载失败",
+    "createFailed": "用户创建失败"
   }
 }

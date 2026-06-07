@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-fetch";
@@ -14,6 +14,8 @@ interface UserMenuProps {
 
 export function UserMenu({ username, role }: UserMenuProps) {
   const locale = useLocale();
+  const t = useTranslations("admin");
+  const commonT = useTranslations("common");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = useCallback(async () => {
@@ -32,14 +34,16 @@ export function UserMenu({ username, role }: UserMenuProps) {
         <Link
           href={`/${locale}/admin`}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-[--text-muted] transition-colors hover:bg-[--surface] hover:text-[--text-primary]"
-          title="Admin"
+          title={t("title")}
         >
           <Shield className="h-4 w-4" />
         </Link>
       )}
       <div className="hidden min-w-0 text-right sm:block">
         <div className="truncate text-xs font-medium text-[--text-primary]">{username}</div>
-        <div className="text-[10px] uppercase tracking-wide text-[--text-muted]">{role}</div>
+        <div className="text-[10px] text-[--text-muted]">
+          {role === "admin" ? t("adminRole") : t("userRole")}
+        </div>
       </div>
       <Button
         type="button"
@@ -47,7 +51,7 @@ export function UserMenu({ username, role }: UserMenuProps) {
         size="icon-sm"
         onClick={handleLogout}
         disabled={isLoggingOut}
-        title="Logout"
+        title={commonT("logout")}
       >
         <LogOut className="h-4 w-4" />
       </Button>

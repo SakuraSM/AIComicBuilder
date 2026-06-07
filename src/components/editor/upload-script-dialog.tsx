@@ -80,7 +80,7 @@ export function UploadScriptDialog({
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Upload failed");
+        throw new Error(err.error || tc("uploadFailed"));
       }
 
       const data = await res.json();

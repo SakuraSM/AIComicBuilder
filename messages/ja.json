@@ -18,7 +18,14 @@
     "batchPartialFailed": "一部のアイテムの生成に失敗しました。後でもう一度お試しください。",
     "promptTemplates": "プロンプト管理",
     "upload": "アップロード",
-    "uploadFailed": "アップロードに失敗しました。もう一度お試しください。"
+    "uploadFailed": "アップロードに失敗しました。もう一度お試しください。",
+    "loadFailed": "読み込みに失敗しました",
+    "saveFailed": "保存に失敗しました",
+    "resetFailed": "リセットに失敗しました",
+    "operationFailed": "操作に失敗しました",
+    "validationFailed": "検証に失敗しました",
+    "networkError": "ネットワークエラーです。しばらくしてからもう一度お試しください。",
+    "logout": "ログアウト"
   },
   "dashboard": {
     "title": "マイプロジェクト",
@@ -30,7 +37,8 @@
       "draft": "下書き",
       "processing": "処理中",
       "completed": "完了"
-    }
+    },
+    "projectTitlePlaceholder": "例：サイバー英雄譚"
   },
   "project": {
     "title": "プロジェクト名",
@@ -95,7 +103,15 @@
     "kanbanBatchGenerate": "一括生成 ({count})",
     "continueFromPrev": "前話から続ける",
     "continueFromPrevTooltip": "前話の最後のフレームを最初のフレームとして使用",
-    "prevEpisodeNoFrames": "前話のフレームが未生成です"
+    "prevEpisodeNoFrames": "前話のフレームが未生成です",
+    "generatingOutlineFirst": "先にアウトラインを生成しています...",
+    "batchGenerateSuccess": "{total} 件のショットが完了しました",
+    "batchGenerateFailed": "{failed}/{total} 件のショットが失敗しました",
+    "retryAllSucceeded": "すべての再試行が成功しました",
+    "retryStillFailing": "{count} 件のショットがまだ失敗しています",
+    "retryFailed": "{count} 件の失敗を再試行",
+    "failedCount": "{count} 件失敗",
+    "switchModeFailed": "生成モードの切り替えに失敗しました"
   },
   "character": {
     "name": "キャラクター名",
@@ -183,7 +199,12 @@
     "dof": "被写界深度",
     "sfx": "効果音",
     "music": "音楽",
-    "shot": "ショット"
+    "shot": "ショット",
+    "copyImagePrompt": "画像プロンプトをコピー",
+    "openEditor": "エディターを開く",
+    "cameraDirectionPlaceholder": "例：static / pan-left / zoom-in ...",
+    "saveAssetsFailed": "アセットの保存に失敗しました",
+    "switchVersionFailed": "バージョン切り替えに失敗しました"
   },
   "storyboard": {
     "stale": "更新が必要",
@@ -192,7 +213,21 @@
     "generateRefPrompts": "参考画像プロンプト生成",
     "batchGenerateRefImages": "参考画像を一括生成",
     "needTwoVersions": "比較には2つ以上のバージョンが必要です",
-    "noFrame": "フレームなし"
+    "noFrame": "フレームなし",
+    "generateKeyframePrompts": "キーフレームプロンプトを生成",
+    "generateKeyframePromptsTitle": "既存のショットメタデータから開始/終了フレームの画像プロンプトを生成します",
+    "refPromptsFailed": "参照プロンプトの生成に失敗しました",
+    "referenceImagesFailed": "{count} 枚の参照画像が失敗しました",
+    "referenceImagesGenerated": "{count} 枚の参照画像を生成しました",
+    "noPendingReferenceImages": "生成待ちの参照画像はありません",
+    "batchReferenceImagesFailed": "参照画像の一括生成に失敗しました",
+    "previousShots": "前のショット",
+    "nextShots": "次のショット",
+    "otherShots": "その他のショット",
+    "shotRange": "ショット {start}-{end} / {total}",
+    "refPromptsGenerated": "{updated}/{total} 件のショットに参照画像プロンプトを生成しました",
+    "keyframePromptsGenerated": "{updated}/{total} 件のショットにキーフレームプロンプトを生成しました",
+    "keyframePromptsFailed": "キーフレームプロンプトの生成に失敗しました"
   },
   "episode": {
     "title": "エピソード管理",
@@ -305,7 +340,7 @@
     "videoModels": "動画モデル",
     "promptTemplates": "プロンプト管理",
     "promptTemplatesDesc": "AI 生成プロンプトテンプレートをカスタマイズ",
-    "agents": "Agents",
+    "agents": "エージェント",
     "agentPlatform": "Platform",
     "agentPlatform_bailian": "Bailian",
     "agentPlatform_dify": "Dify",
@@ -328,7 +363,17 @@
     "agentDescription": "説明",
     "agentDescriptionPlaceholder": "任意：エージェントの目的を説明",
     "noAgents": "エージェントがまだありません。上のボタンをクリックして追加してください。",
-    "defaultAgent": "デフォルト"
+    "defaultAgent": "デフォルト",
+    "newProvider": "新しいプロバイダー",
+    "providerNamePlaceholder": "例：DeepSeek、OpenRouter...",
+    "fetchModelsFailed": "モデル一覧の取得に失敗しました",
+    "noModelsFound": "一致するモデルがありません",
+    "baseUrl": "Base URL",
+    "accessKey": "Access Key (AK)",
+    "secretKey": "Secret Key (SK)",
+    "apiKey": "API Key",
+    "accessKeyPlaceholder": "Access Key...",
+    "secretKeyPlaceholder": "Secret Key..."
   },
   "promptTemplates": {
     "title": "プロンプト管理",
@@ -392,7 +437,13 @@
       "savedSuccess": "プロンプトを保存しました",
       "resetSuccess": "デフォルトにリセットしました",
       "slots": "スロット",
-      "slotsCount": "{count} 個のスロット"
+      "slotsCount": "{count} 個のスロット",
+      "loadFailed": "プロンプトテンプレートの読み込みに失敗しました",
+      "loadDataFailed": "プロンプトデータの読み込みに失敗しました",
+      "saveFailed": "保存に失敗しました",
+      "resetFailed": "リセットに失敗しました",
+      "validationFailed": "プロンプト検証に失敗しました",
+      "loading": "読み込み中..."
     },
     "editPrompt": "プロンプト",
     "project": {
@@ -436,7 +487,11 @@
       "anime": "アニメ",
       "animeDesc": "アニメ/マンガ生成に最適化",
       "minimal": "ミニマル",
-      "minimalDesc": "簡潔なプロンプト、トークン節約"
+      "minimalDesc": "簡潔なプロンプト、トークン節約",
+      "loadFailed": "プリセットの読み込みに失敗しました",
+      "applyFailed": "プリセットの適用に失敗しました",
+      "deleteFailed": "プリセットの削除に失敗しました",
+      "saveFailed": "プリセットの保存に失敗しました"
     },
     "versions": {
       "title": "バージョン履歴",
@@ -538,5 +593,38 @@
       "durationStrategy": "尺戦略",
       "durationStrategyDesc": "ショット尺に応じた記述粒度のルール"
     }
+  },
+  "login": {
+    "title": "ログイン",
+    "subtitle": "制作ワークスペースにログインします。",
+    "loginLabel": "メールまたはユーザー名",
+    "passwordLabel": "パスワード",
+    "signIn": "ログイン",
+    "privateNotice": "このプライベート環境のアカウントは管理者が作成します。",
+    "defaultError": "ログインに失敗しました。アカウントとパスワードを確認してください。"
+  },
+  "admin": {
+    "title": "管理",
+    "refresh": "更新",
+    "createUser": "ユーザーを作成",
+    "email": "メール",
+    "username": "ユーザー名",
+    "password": "パスワード",
+    "role": "ロール",
+    "userRole": "ユーザー",
+    "adminRole": "管理者",
+    "activeStatus": "有効",
+    "disabledStatus": "無効",
+    "create": "作成",
+    "users": "ユーザー",
+    "accountsCount": "{count} 件のアカウント",
+    "projectsCount": "{count} 件のプロジェクト",
+    "toggleRole": "ロールを切り替え",
+    "disable": "無効化",
+    "enable": "有効化",
+    "resetPassword": "パスワードをリセット",
+    "newPasswordPrompt": "新しいパスワード（8文字以上）",
+    "loadFailed": "ユーザー一覧の読み込みに失敗しました",
+    "createFailed": "ユーザー作成に失敗しました"
   }
 }

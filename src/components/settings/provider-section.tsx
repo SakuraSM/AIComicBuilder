@@ -32,7 +32,7 @@ export function ProviderSection({
 
   function handleAdd() {
     const id = addProvider({
-      name: "New Provider",
+      name: t("newProvider"),
       protocol: defaultProtocol,
       capability,
       baseUrl: defaultBaseUrl,

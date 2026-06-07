@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Plus, RefreshCcw, Shield, UserCog } from "lucide-react";
 import Link from "next/link";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ const EMPTY_FORM = {
 
 export default function AdminPage() {
   const locale = useLocale();
+  const t = useTranslations("admin");
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,11 +44,11 @@ export default function AdminPage() {
       const rows = (await response.json()) as AdminUserRow[];
       setUsers(rows);
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Failed to load users");
+      setError(caughtError instanceof ApiError ? caughtError.message : t("loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadUsers();
@@ -66,7 +67,7 @@ export default function AdminPage() {
       setForm(EMPTY_FORM);
       await loadUsers();
     } catch (caughtError) {
-      setError(caughtError instanceof ApiError ? caughtError.message : "Failed to create user");
+      setError(caughtError instanceof ApiError ? caughtError.message : t("createFailed"));
     } finally {
       setIsCreating(false);
     }
@@ -82,7 +83,7 @@ export default function AdminPage() {
   }
 
   async function resetPassword(id: string) {
-    const password = window.prompt("New password (at least 8 characters)");
+    const password = window.prompt(t("newPasswordPrompt"));
     if (!password) return;
     await apiFetch(`/api/admin/users/${id}/reset-password`, {
       method: "POST",
@@ -105,12 +106,12 @@ export default function AdminPage() {
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Shield className="h-4 w-4" />
             </div>
-            <h1 className="font-display text-sm font-semibold text-[--text-primary]">Admin</h1>
+            <h1 className="font-display text-sm font-semibold text-[--text-primary]">{t("title")}</h1>
           </div>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={loadUsers}>
           <RefreshCcw className="h-4 w-4" />
-          Refresh
+          {t("refresh")}
         </Button>
       </header>
 
@@ -118,46 +119,46 @@ export default function AdminPage() {
         <form onSubmit={handleCreate} className="h-fit rounded-xl border border-[--border-subtle] bg-white p-5">
           <div className="mb-4 flex items-center gap-2">
             <UserCog className="h-4 w-4 text-primary" />
-            <h2 className="font-display text-sm font-semibold text-[--text-primary]">Create user</h2>
+            <h2 className="font-display text-sm font-semibold text-[--text-primary]">{t("createUser")}</h2>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("email")}</Label>
               <Input id="email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t("username")}</Label>
               <Input id="username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-password">Password</Label>
+              <Label htmlFor="new-password">{t("password")}</Label>
               <Input id="new-password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Role</Label>
+              <Label>{t("role")}</Label>
               <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value as "user" | "admin" })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="user">{t("userRole")}</SelectItem>
+                  <SelectItem value="admin">{t("adminRole")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <Button type="submit" className="w-full" disabled={isCreating}>
               {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Create
+              {t("create")}
             </Button>
           </div>
         </form>
 
         <section className="rounded-xl border border-[--border-subtle] bg-white">
           <div className="flex items-center justify-between border-b border-[--border-subtle] p-4">
-            <h2 className="font-display text-sm font-semibold text-[--text-primary]">Users</h2>
-            <span className="text-xs text-[--text-muted]">{users.length} accounts</span>
+            <h2 className="font-display text-sm font-semibold text-[--text-primary]">{t("users")}</h2>
+            <span className="text-xs text-[--text-muted]">{t("accountsCount", { count: users.length })}</span>
           </div>
 
           {isLoading ? (
@@ -171,22 +172,26 @@ export default function AdminPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-[--text-primary]">{user.username}</span>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
-                      <Badge variant={user.status === "active" ? "success" : "destructive"}>{user.status}</Badge>
+                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                        {user.role === "admin" ? t("adminRole") : t("userRole")}
+                      </Badge>
+                      <Badge variant={user.status === "active" ? "success" : "destructive"}>
+                        {user.status === "active" ? t("activeStatus") : t("disabledStatus")}
+                      </Badge>
                     </div>
                     <div className="mt-1 truncate text-xs text-[--text-muted]">
-                      {user.email} · {user.projectCount} projects
+                      {user.email} · {t("projectsCount", { count: user.projectCount })}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" size="xs" onClick={() => updateUser(user.id, { role: user.role === "admin" ? "user" : "admin" })}>
-                      Toggle role
+                      {t("toggleRole")}
                     </Button>
                     <Button type="button" variant="outline" size="xs" onClick={() => updateUser(user.id, { status: user.status === "active" ? "disabled" : "active" })}>
-                      {user.status === "active" ? "Disable" : "Enable"}
+                      {user.status === "active" ? t("disable") : t("enable")}
                     </Button>
                     <Button type="button" variant="ghost" size="xs" onClick={() => resetPassword(user.id)}>
-                      Reset password
+                      {t("resetPassword")}
                     </Button>
                   </div>
                 </div>
