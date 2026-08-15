@@ -13,6 +13,7 @@ export interface Model {
 
 export interface Provider {
   id: string;
+  serverProfileId?: string;
   name: string;
   protocol: Protocol;
   capability: Capability;
@@ -164,31 +165,49 @@ export const useModelStore = create<ModelStore>()(
     }),
     {
       name: "model-store",
-      version: 2,
-      migrate: (persistedState: unknown, fromVersion: number) => {
-        // Called only when stored data has an explicit version number that differs from 2.
-        // For data with no version field (legacy), the merge function below handles migration.
-        if (fromVersion < 2) {
-          const state = persistedState as Record<string, unknown>;
-          const providers = (state.providers as Array<Record<string, unknown>>) ?? [];
-          return {
-            ...state,
-            providers: providers.map((p) => {
-              const caps = (p.capabilities as string[]) ?? [];
-              return { ...p, capability: caps[0] ?? "text" };
-            }),
-          };
-        }
-        return persistedState;
+      version: 3,
+      partialize: (state) => ({
+        ...state,
+        providers: state.providers.map((provider) => ({
+          ...provider,
+          apiKey: "",
+          secretKey: undefined,
+        })),
+      }),
+      migrate: (persistedState: unknown) => {
+        const state = persistedState as Record<string, unknown>;
+        const providers = (state.providers as Array<Record<string, unknown>>) ?? [];
+        return {
+          ...state,
+          providers: providers.map((provider) => {
+            const capabilities = (provider.capabilities as string[]) ?? [];
+            return {
+              ...provider,
+              capability:
+                typeof provider.capability === "string"
+                  ? provider.capability
+                  : capabilities[0] ?? "text",
+              apiKey: "",
+              secretKey: undefined,
+            };
+          }),
+        };
       },
       merge: (persistedState: unknown, currentState) => {
         // Handles legacy stored data that has no version field (Zustand skips migrate in that case).
         const ps = persistedState as Record<string, unknown>;
         const providers = (ps?.providers as Array<Record<string, unknown>>) ?? [];
-        const migrated = providers.map((p) => {
-          if (typeof p.capability === "string") return p; // already migrated
-          const caps = (p.capabilities as string[]) ?? [];
-          return { ...p, capability: caps[0] ?? "text" };
+        const migrated = providers.map((provider) => {
+          const capabilities = (provider.capabilities as string[]) ?? [];
+          return {
+            ...provider,
+            capability:
+              typeof provider.capability === "string"
+                ? provider.capability
+                : capabilities[0] ?? "text",
+            apiKey: "",
+            secretKey: undefined,
+          };
         });
         return { ...currentState, ...ps, providers: migrated as unknown as Provider[] };
       },

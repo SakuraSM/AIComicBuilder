@@ -35,6 +35,7 @@ import {
   GitCompare,
   ChevronLeft,
   ChevronRight,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 import { InlineModelPicker } from "@/components/editor/model-selector";
 import { VideoRatioPicker } from "@/components/editor/video-ratio-picker";
@@ -48,6 +49,12 @@ import { VersionCompare } from "@/components/editor/version-compare";
 import { PromptEditButton } from "@/components/prompt-templates/prompt-edit-button";
 import { AgentPicker } from "@/components/agent-picker";
 import Link from "next/link";
+import { ShotTimeline } from "@/components/editor/shot-timeline";
+import { useWorkspaceModeStore } from "@/stores/workspace-mode-store";
+import {
+  GenerationPreflightDialog,
+  type PreflightStage,
+} from "@/components/workflow/generation-preflight-dialog";
 
 const SHOTS_PER_PAGE = 8;
 type ProjectShot = NonNullable<ReturnType<typeof useProjectStore.getState>["project"]>["shots"][number];
@@ -64,6 +71,9 @@ export default function EpisodeStoryboardPage() {
   const locale = useLocale();
   const { project, fetchProject } = useProjectStore();
   const getModelConfig = useModelStore((s) => s.getModelConfig);
+  const modelProviders = useModelStore((state) => state.providers);
+  const defaultImageModel = useModelStore((state) => state.defaultImageModel);
+  const defaultVideoModel = useModelStore((state) => state.defaultVideoModel);
   const [generating, setGenerating] = useState(false);
   const [generatingFrames, setGeneratingFrames] = useState(false);
   const [generatingVideos, setGeneratingVideos] = useState(false);
@@ -77,7 +87,8 @@ export default function EpisodeStoryboardPage() {
   const versions = project?.versions ?? [];
   const [_selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [openDrawerShotId, setOpenDrawerShotId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "timeline">("list");
+  const workspaceMode = useWorkspaceModeStore((state) => state.mode);
   const [versionDropdownOpen, setVersionDropdownOpen] = useState(false);
   const versionDropdownRef = useRef<HTMLDivElement>(null);
   const [batchProgress, setBatchProgress] = useState<{
@@ -91,6 +102,8 @@ export default function EpisodeStoryboardPage() {
   const [generatingRefPrompts, setGeneratingRefPrompts] = useState(false);
   const [generatingKeyframeAssets, setGeneratingKeyframeAssets] = useState(false);
   const [shotPageIndex, setShotPageIndex] = useState(0);
+  const [isPreflightOpen, setIsPreflightOpen] = useState(false);
+  const [preflightStages, setPreflightStages] = useState<PreflightStage[]>([]);
 
   const currentEpisodeId = useProjectStore((s) => s.currentEpisodeId);
   const episodeStoreEpisodes = useEpisodeStore((s) => s.episodes);
@@ -103,7 +116,7 @@ export default function EpisodeStoryboardPage() {
   }, [project?.id, episodeStoreEpisodes.length, fetchEpisodes]);
 
 
-  function switchView(mode: "list" | "kanban") {
+  function switchView(mode: "list" | "kanban" | "timeline") {
     setViewMode(mode);
     if (project) localStorage.setItem(`storyboardView:${project.id}`, mode);
   }
@@ -115,8 +128,16 @@ export default function EpisodeStoryboardPage() {
   useEffect(() => {
     if (!project?.id) return;
     const stored = localStorage.getItem(`storyboardView:${project.id}`);
-    if (stored === "list" || stored === "kanban") setViewMode(stored);
+    if (stored === "list" || stored === "kanban" || stored === "timeline") {
+      setViewMode(stored);
+    }
   }, [project?.id]);
+
+  useEffect(() => {
+    if (workspaceMode === "guided" && viewMode === "timeline") {
+      setViewMode("list");
+    }
+  }, [viewMode, workspaceMode]);
 
   // Derived: if user's selection is valid keep it, otherwise fall back to latest
   const selectedVersionId = (_selectedVersionId && versions.some((v) => v.id === _selectedVersionId))
@@ -625,7 +646,6 @@ export default function EpisodeStoryboardPage() {
 
   async function handleAutoRun() {
     if (!project) return;
-    if (!confirm(t("project.autoRunConfirm"))) return;
 
     const shots = project.shots;
     const needsText = shots.some((s) => !s.prompt && !s.motionScript);
@@ -637,28 +657,91 @@ export default function EpisodeStoryboardPage() {
       generationMode === "reference" ? !getReferenceVideoUrl(s) : !getKeyframeVideoUrl(s)
     );
 
-    if (needsText) await handleGenerateShots();
-    if (generationMode === "reference") {
-      // Step 2a: Generate ref image prompts if needed
-      const needsRefPrompts = shots.some((s) => getReferenceAssets(s).length === 0);
-      if (needsRefPrompts) await handleGenerateRefPrompts();
+    const isStudioWorkspaceV2Enabled =
+      process.env.NEXT_PUBLIC_STUDIO_WORKSPACE_V2 !== "false";
+    if (!isStudioWorkspaceV2Enabled || generationMode === "reference") {
+      if (!confirm(t("project.autoRunConfirm"))) return;
+      if (needsText) await handleGenerateShots();
+      if (generationMode === "reference") {
+        const needsRefPrompts = shots.some((s) => getReferenceAssets(s).length === 0);
+        if (needsRefPrompts) await handleGenerateRefPrompts();
+        if (needsFrame) await handleBatchGenerateSceneFrames(false);
+      } else if (needsFrame) {
+        await handleBatchGenerateFrames(false);
+      }
+      if (needsPrompt) await handleBatchGenerateVideoPrompts();
+      if (needsVideo) {
+        if (generationMode === "reference") {
+          await handleBatchGenerateReferenceVideos(false);
+        } else {
+          await handleBatchGenerateVideos(false);
+        }
+      }
+      return;
+    }
 
-      // Step 2b: Generate ref images
-      if (needsFrame) await handleBatchGenerateSceneFrames(false);
-    } else {
-      if (needsFrame) await handleBatchGenerateFrames(false);
+    if (needsText) {
+      await handleGenerateShots();
+      toast.info(t("studio.runAgainAfterStoryboard"));
+      return;
     }
+
     if (needsPrompt) await handleBatchGenerateVideoPrompts();
-    if (needsVideo) {
-      if (generationMode === "reference") await handleBatchGenerateReferenceVideos(false);
-      else await handleBatchGenerateVideos(false);
+
+    const imageProfileId = modelProviders.find(
+      (provider) => provider.id === defaultImageModel?.providerId,
+    )?.serverProfileId;
+    const videoProfileId = modelProviders.find(
+      (provider) => provider.id === defaultVideoModel?.providerId,
+    )?.serverProfileId;
+    if (needsFrame && !imageProfileId) {
+      toast.error(t("studio.secureImageProfileRequired"));
+      return;
     }
+    if (needsVideo && !videoProfileId) {
+      toast.error(t("studio.secureVideoProfileRequired"));
+      return;
+    }
+
+    const runnableShots = shots.filter((shot) => shot.isLocked !== 1);
+    const frameStages: PreflightStage[] = runnableShots
+      .filter((shot) => !getFirstFrameUrl(shot) || !getLastFrameUrl(shot))
+      .map((shot) => ({
+        type: "frame_generate",
+        stage: "frames",
+        modelProfileId: imageProfileId,
+        payload: { shotId: shot.id },
+      }));
+    const videoStages: PreflightStage[] = runnableShots
+      .filter((shot) => !getKeyframeVideoUrl(shot))
+      .map((shot) => ({
+        type: "video_generate",
+        stage: "videos",
+        modelProfileId: videoProfileId,
+        payload: { shotId: shot.id, ratio: videoRatio },
+      }));
+    const nextStages = [...frameStages, ...videoStages];
+    if (nextStages.length === 0) {
+      toast.success(t("common.generationCompleted"));
+      return;
+    }
+    setPreflightStages(nextStages);
+    setIsPreflightOpen(true);
   }
 
   return (
     <div className="animate-page-in space-y-4">
+      <GenerationPreflightDialog
+        open={isPreflightOpen}
+        onOpenChange={setIsPreflightOpen}
+        projectId={project.id}
+        episodeId={currentEpisodeId ?? undefined}
+        mode={workspaceMode}
+        stages={preflightStages}
+        onRunStarted={() => setPreflightStages([])}
+      />
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
             <Film className="h-4 w-4 text-primary" />
@@ -672,7 +755,7 @@ export default function EpisodeStoryboardPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 max-w-full items-center gap-2 overflow-x-auto pb-1 sm:w-auto sm:justify-end sm:pb-0">
           <PromptEditButton
             // Full set of storyboard-related prompts — matches the
             // settings/prompts page "分镜" tab exactly (9 prompts across
@@ -698,6 +781,7 @@ export default function EpisodeStoryboardPage() {
           {totalShots > 0 && (
             <div className="inline-flex gap-1 rounded-xl border border-[--border-subtle] bg-[--surface] p-1">
               <button
+                type="button"
                 onClick={() => switchView("list")}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-all duration-150 ${
                   viewMode === "list"
@@ -709,6 +793,7 @@ export default function EpisodeStoryboardPage() {
                 {t("project.viewList")}
               </button>
               <button
+                type="button"
                 onClick={() => switchView("kanban")}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-all duration-150 ${
                   viewMode === "kanban"
@@ -719,6 +804,20 @@ export default function EpisodeStoryboardPage() {
                 <LayoutGrid className={`h-3.5 w-3.5 ${viewMode === "kanban" ? "text-primary" : ""}`} />
                 {t("project.viewKanban")}
               </button>
+              {workspaceMode === "professional" && (
+                <button
+                  type="button"
+                  onClick={() => switchView("timeline")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-all duration-150 ${
+                    viewMode === "timeline"
+                      ? "bg-white text-primary shadow ring-1 ring-primary/20"
+                      : "text-[--text-muted] hover:bg-white/60 hover:text-[--text-secondary]"
+                  }`}
+                >
+                  <GalleryHorizontalEnd className={`h-3.5 w-3.5 ${viewMode === "timeline" ? "text-primary" : ""}`} />
+                  {t("studio.timeline")}
+                </button>
+              )}
             </div>
           )}
           {totalShots > 0 && versions.length >= 2 && (
@@ -1174,6 +1273,18 @@ export default function EpisodeStoryboardPage() {
             {t("shot.noShots")}
           </p>
         </div>
+      ) : viewMode === "timeline" ? (
+        <ShotTimeline
+          projectId={project.id}
+          shots={project.shots}
+          onOpenShot={setOpenDrawerShotId}
+          onRefresh={() =>
+            fetchProject(
+              project.id,
+              useProjectStore.getState().currentEpisodeId ?? undefined,
+            )
+          }
+        />
       ) : viewMode === "kanban" ? (
         <ShotKanban
           shots={project.shots}

@@ -11,7 +11,8 @@ import {
   type Capability,
 } from "@/stores/model-store";
 import { useTranslations } from "next-intl";
-import { Loader2, Download, Plus, Eye, EyeOff, Trash2, Search } from "lucide-react";
+import { Loader2, Download, Plus, Eye, EyeOff, Trash2, Search, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 const DEFAULT_BASE_URLS: Record<Protocol, string> = {
   openai: "https://api.openai.com",
@@ -62,6 +63,7 @@ export function ProviderForm({ provider }: ProviderFormProps) {
   const [showKey, setShowKey] = useState(false);
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [isSavingSecurely, setIsSavingSecurely] = useState(false);
 
   const isKling = provider.protocol === "kling";
 
@@ -102,6 +104,40 @@ export function ProviderForm({ provider }: ProviderFormProps) {
     if (!id) return;
     addManualModel(provider.id, id);
     setManualModelId("");
+  }
+
+  async function handleSaveSecurely() {
+    const selectedModel = provider.models.find((model) => model.checked);
+    if (!selectedModel || !provider.apiKey.trim()) return;
+
+    setIsSavingSecurely(true);
+    try {
+      const response = await fetch("/api/model-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: provider.serverProfileId,
+          name: provider.name,
+          capability: provider.capability,
+          protocol: provider.protocol,
+          baseUrl: provider.baseUrl,
+          modelId: selectedModel.id,
+          apiKey: provider.apiKey,
+          secretKey: provider.secretKey,
+          isDefault: true,
+        }),
+      });
+      const result = (await response.json()) as { id?: string; error?: string };
+      if (!response.ok || !result.id) {
+        throw new Error(result.error || t("secureSaveFailed"));
+      }
+      updateProvider(provider.id, { serverProfileId: result.id });
+      toast.success(t("secureSaveSuccess"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("secureSaveFailed"));
+    } finally {
+      setIsSavingSecurely(false);
+    }
   }
 
   return (
@@ -364,6 +400,37 @@ export function ProviderForm({ provider }: ProviderFormProps) {
             </div>
           );
         })()}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-700" />
+          <div>
+            <p className="text-xs font-semibold text-emerald-900">
+              {provider.serverProfileId ? t("securedOnServer") : t("secureCredentials")}
+            </p>
+            <p className="mt-0.5 text-xs text-emerald-800/75">
+              {t("secureCredentialsDescription")}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSaveSecurely}
+          disabled={
+            isSavingSecurely ||
+            !provider.apiKey.trim() ||
+            !provider.models.some((model) => model.checked)
+          }
+        >
+          {isSavingSecurely ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ShieldCheck className="h-3.5 w-3.5" />
+          )}
+          {t("saveSecurely")}
+        </Button>
       </div>
     </div>
   );

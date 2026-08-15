@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { tasks, projects } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { requestTaskCancellation } from "@/lib/task-queue";
 
 export async function GET(
   request: Request,
@@ -25,4 +26,27 @@ export async function GET(
   }
 
   return NextResponse.json(row.task);
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const [row] = await db
+    .select({ taskId: tasks.id })
+    .from(tasks)
+    .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .where(and(eq(tasks.id, id), eq(projects.userId, userId)));
+  if (!row) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await requestTaskCancellation(id);
+  return NextResponse.json({ cancellationRequested: true });
 }

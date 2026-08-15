@@ -4,6 +4,15 @@ import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import "../globals.css";
 import { Toaster } from "sonner";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: {
+    default: "AIComicBuilder",
+    template: "%s · AIComicBuilder",
+  },
+  description: "AI-assisted comic and video production workspace",
+};
 
 export default async function LocaleLayout({
   children,

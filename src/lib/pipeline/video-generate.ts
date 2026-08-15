@@ -10,6 +10,8 @@ import { getModelMaxDuration } from "@/lib/ai/model-limits";
 import { eq } from "drizzle-orm";
 import type { Task } from "@/lib/task-queue";
 import { getActiveAsset, insertAssetVersion } from "@/lib/shot-asset-utils";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
+import { persistGeneratedAsset, withMaterializedAssets } from "@/lib/storage";
 
 async function getVersionedUploadDirFromPipeline(versionId: string | null | undefined): Promise<string> {
   if (!versionId) return process.env.UPLOAD_DIR || "./uploads";
@@ -22,7 +24,14 @@ async function getVersionedUploadDirFromPipeline(versionId: string | null | unde
 }
 
 export async function handleVideoGenerate(task: Task) {
-  const payload = task.payload as { shotId: string; projectId?: string; userId?: string; ratio?: string; modelConfig?: ModelConfigPayload };
+  const payload = task.payload as {
+    shotId: string;
+    projectId?: string;
+    userId?: string;
+    ratio?: string;
+    modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
+  };
 
   const [shot] = await db
     .select()
@@ -30,6 +39,9 @@ export async function handleVideoGenerate(task: Task) {
     .where(eq(shots.id, payload.shotId));
 
   if (!shot) throw new Error("Shot not found");
+  if (shot.isLocked === 1) {
+    return { skipped: true, reason: "SHOT_LOCKED", shotId: shot.id };
+  }
 
   // Read first/last frame URL from shot_assets
   const firstFrameAsset = await getActiveAsset(payload.shotId, "first_frame", 0);
@@ -48,9 +60,14 @@ export async function handleVideoGenerate(task: Task) {
     .where(eq(characters.projectId, shot.projectId));
 
   const versionedUploadDir = await getVersionedUploadDirFromPipeline(shot.versionId);
-  const videoProvider = resolveVideoProvider(payload.modelConfig, versionedUploadDir);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const videoProvider = resolveVideoProvider(modelConfig, versionedUploadDir);
 
-  const videoModelId = payload.modelConfig?.video?.modelId;
+  const videoModelId = modelConfig?.video?.modelId;
   const modelMaxDuration = getModelMaxDuration(videoModelId);
   const effectiveDuration = Math.min(shot.duration ?? 10, modelMaxDuration);
 
@@ -74,12 +91,21 @@ export async function handleVideoGenerate(task: Task) {
     slotContents: videoSlots,
   });
 
-  const result = await videoProvider.generateVideo({
-    firstFrame: firstFrameUrl,
-    lastFrame: lastFrameUrl,
-    prompt,
-    duration: effectiveDuration,
-    ratio: payload.ratio ?? "16:9",
+  const result = await withMaterializedAssets({
+    values: [firstFrameUrl, lastFrameUrl],
+    execute: ([firstFrame, lastFrame]) =>
+      videoProvider.generateVideo({
+        firstFrame,
+        lastFrame,
+        prompt,
+        duration: effectiveDuration,
+        ratio: payload.ratio ?? "16:9",
+      }),
+  });
+  const videoAsset = await persistGeneratedAsset({
+    source: result.filePath,
+    keyPrefix: `projects/${shot.projectId}/shots/${payload.shotId}/videos`,
+    filename: "video.mp4",
   });
 
   // Persist the keyframe video output as a new versioned asset row.
@@ -88,7 +114,7 @@ export async function handleVideoGenerate(task: Task) {
     type: "keyframe_video",
     sequenceInType: 0,
     prompt,
-    fileUrl: result.filePath,
+    fileUrl: videoAsset.url,
     status: "completed",
   });
 
@@ -99,7 +125,7 @@ export async function handleVideoGenerate(task: Task) {
 
   // Best-effort video quality check — does not block or fail generation
   try {
-    const textProvider = resolveAIProvider(payload.modelConfig);
+    const textProvider = resolveAIProvider(modelConfig);
     if (textProvider) {
       const qualityResult = await checkVideoQuality(
         textProvider,
@@ -116,7 +142,7 @@ export async function handleVideoGenerate(task: Task) {
       }
 
       return {
-        videoPath: result.filePath,
+        video: videoAsset,
         qualityScore: qualityResult.score,
         qualityIssues: qualityResult.issues,
       };
@@ -125,5 +151,5 @@ export async function handleVideoGenerate(task: Task) {
     console.warn("[VideoQuality] Quality check skipped:", e);
   }
 
-  return { videoPath: result.filePath };
+  return { video: videoAsset };
 }

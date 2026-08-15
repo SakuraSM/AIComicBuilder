@@ -16,6 +16,9 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a className="skip-link" href="#main-content">
+        {t("skipToContent")}
+      </a>
       <header className="sticky top-0 z-30 flex h-14 flex-shrink-0 items-center justify-between border-b border-[--border-subtle] bg-white/80 backdrop-blur-xl px-4 lg:px-6">
         <Link href="/" className="flex items-center gap-2 group">
           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[--primary]/10 text-[--primary]">
@@ -43,7 +46,7 @@ export default async function DashboardLayout({
           {user && <UserMenu username={user.username} role={user.role} />}
         </div>
       </header>
-      <main className="flex-1 bg-[--surface] p-6 lg:p-8">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1 bg-[--surface] p-6 lg:p-8">{children}</main>
     </div>
   );
 }

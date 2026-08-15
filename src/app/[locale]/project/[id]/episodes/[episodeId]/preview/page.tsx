@@ -51,16 +51,12 @@ export default function EpisodePreviewPage() {
   const hasReferenceVideos = project?.shots.some((s) => getReferenceVideoUrl(s)) ?? false;
   const hasBothModes = hasKeyframeVideos && hasReferenceVideos;
 
-  const [previewMode, setPreviewMode] = useState<"keyframe" | "reference">(generationMode);
-
-  // Sync previewMode when project loads
-  useEffect(() => {
-    if (project) setPreviewMode(project.generationMode ?? "keyframe");
-  }, [project?.generationMode]);
+  const [selectedPreviewMode, setSelectedPreviewMode] = useState<"keyframe" | "reference" | null>(null);
+  const previewMode = selectedPreviewMode ?? generationMode;
 
   // Check if final video file actually exists
   useEffect(() => {
-    if (!finalVideoUrl) { setVideoValid(null); return; }
+    if (!finalVideoUrl) return;
     if (checkedUrl.current === finalVideoUrl) return;
     checkedUrl.current = finalVideoUrl;
     fetch(uploadUrl(finalVideoUrl), { method: "HEAD" })
@@ -77,7 +73,6 @@ export default function EpisodePreviewPage() {
     previewMode === "reference" ? getSceneRefFrameUrl(shot) : getFirstFrameUrl(shot);
 
   const shotsWithVideo = project.shots.filter((s) => getVideoUrl(s));
-  const allShotsHaveVideo = project.shots.length > 0 && project.shots.every((s) => getVideoUrl(s));
   const completedVideos = shotsWithVideo.length;
   const currentShot = shotsWithVideo[selectedShot];
   const hasValidVideo = finalVideoUrl && videoValid === true;
@@ -110,7 +105,7 @@ export default function EpisodePreviewPage() {
   }
 
   function handleModeSwitch(mode: "keyframe" | "reference") {
-    setPreviewMode(mode);
+    setSelectedPreviewMode(mode);
     setSelectedShot(0);
   }
 

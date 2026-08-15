@@ -19,6 +19,18 @@ export interface StoredObject {
   driver: StorageDriver;
 }
 
+export interface AssetRef {
+  url: string;
+  key?: string;
+  driver: StorageDriver | "external";
+  contentType?: string;
+}
+
+export interface MaterializedAsset {
+  path: string;
+  cleanup: () => Promise<void>;
+}
+
 interface PutObjectInput {
   buffer: Buffer;
   keyPrefix: string;
@@ -118,4 +130,103 @@ export async function materializeAsset(value: string): Promise<string> {
   const tempPath = path.join(os.tmpdir(), `aicomic-${genId()}${ext}`);
   fs.writeFileSync(tempPath, Buffer.from(await response.arrayBuffer()));
   return tempPath;
+}
+
+function inferContentType(filename: string): string | undefined {
+  const extension = path.extname(filename).toLowerCase();
+  const contentTypes: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".srt": "application/x-subrip",
+  };
+  return contentTypes[extension];
+}
+
+function isHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+export async function persistGeneratedAsset(input: {
+  source: string;
+  keyPrefix: string;
+  filename?: string;
+  contentType?: string;
+}): Promise<AssetRef> {
+  if (isLocalStorageUrl(input.source)) {
+    return {
+      key: stripLocalStoragePrefix(input.source),
+      url: input.source,
+      driver: "local",
+      contentType: input.contentType,
+    };
+  }
+  if (isS3StorageUrl(input.source)) {
+    return {
+      key: input.source.slice("s3://".length),
+      url: input.source,
+      driver: "s3",
+      contentType: input.contentType,
+    };
+  }
+
+  let buffer: Buffer;
+  let sourceFilename = input.filename;
+  if (isHttpUrl(input.source)) {
+    const response = await fetch(input.source);
+    if (!response.ok) {
+      throw new Error(`Failed to persist generated asset: ${response.status}`);
+    }
+    buffer = Buffer.from(await response.arrayBuffer());
+    sourceFilename ||= path.basename(new URL(input.source).pathname) || "asset.bin";
+  } else {
+    buffer = await fs.promises.readFile(input.source);
+    sourceFilename ||= path.basename(input.source);
+  }
+
+  const stored = await putObject({
+    buffer,
+    keyPrefix: input.keyPrefix,
+    filename: sourceFilename || "asset.bin",
+    contentType: input.contentType ?? inferContentType(sourceFilename || ""),
+  });
+  return {
+    ...stored,
+    contentType: input.contentType ?? inferContentType(sourceFilename || ""),
+  };
+}
+
+export async function materializeAssetReference(
+  value: string,
+): Promise<MaterializedAsset> {
+  const materializedPath = await materializeAsset(value);
+  const isTemporary = isS3StorageUrl(value);
+  return {
+    path: materializedPath,
+    cleanup: async () => {
+      if (!isTemporary) return;
+      await fs.promises.rm(materializedPath, { force: true });
+    },
+  };
+}
+
+export async function withMaterializedAssets<T>(input: {
+  values: string[];
+  execute: (paths: string[]) => Promise<T>;
+}): Promise<T> {
+  const materializedAssets = await Promise.all(
+    input.values.map(materializeAssetReference),
+  );
+  try {
+    return await input.execute(materializedAssets.map((asset) => asset.path));
+  } finally {
+    await Promise.allSettled(
+      materializedAssets.map((asset) => asset.cleanup()),
+    );
+  }
 }

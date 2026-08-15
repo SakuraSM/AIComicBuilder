@@ -71,6 +71,9 @@ export interface Shot {
   qualityScore?: number;
   qualityIssues?: string[];
   isStale?: boolean;
+  isLocked?: number;
+  qualityStatus?: "pending" | "approved" | "rejected";
+  qualityNotes?: string;
   status: string;
   dialogues: Dialogue[];
   /** Active shot_assets rows for this shot, all types mixed. */

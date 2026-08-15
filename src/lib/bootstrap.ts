@@ -23,8 +23,16 @@ export function bootstrap() {
   console.log("[Bootstrap] Registering pipeline handlers...");
   registerPipelineHandlers();
 
-  console.log("[Bootstrap] Starting task worker...");
-  startWorker();
+  const taskWorkerMode = process.env.TASK_WORKER_MODE ?? "embedded";
+  if (process.env.TASK_ENGINE_V2 !== "false" && taskWorkerMode === "embedded") {
+    console.log("[Bootstrap] Starting task worker...");
+    startWorker();
+  } else {
+    console.log("[Bootstrap] Embedded task worker disabled.", {
+      taskEngineV2: process.env.TASK_ENGINE_V2,
+      taskWorkerMode,
+    });
+  }
 
   console.log("[Bootstrap] Ready.");
 }

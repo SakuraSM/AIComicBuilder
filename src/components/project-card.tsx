@@ -23,6 +23,11 @@ interface ProjectCardProps {
   title: string;
   status: string;
   createdAt: string;
+  activeRun?: {
+    stage: string;
+    progress: number;
+    status: string;
+  };
 }
 
 const statusConfig: Record<string, { dot: string; text: string; bg: string }> = {
@@ -43,7 +48,7 @@ const statusConfig: Record<string, { dot: string; text: string; bg: string }> = 
   },
 };
 
-export function ProjectCard({ id, title, status, createdAt }: ProjectCardProps) {
+export function ProjectCard({ id, title, status, createdAt, activeRun }: ProjectCardProps) {
   const t = useTranslations("dashboard");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -68,21 +73,12 @@ export function ProjectCard({ id, title, status, createdAt }: ProjectCardProps) 
 
   return (
     <>
-      <Link href={`/${locale}/project/${id}/episodes`} className="group block">
-        <div className="relative flex flex-col rounded-xl border border-[--border-subtle] bg-white p-4 transition-all duration-200 hover:border-[--border-hover] hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-          {/* Delete button — top right */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDeleteOpen(true);
-            }}
-            className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-lg text-[--text-muted] opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-            title={tc("delete")}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-
+      <div className="group relative">
+        <Link
+          href={`/${locale}/project/${id}/episodes`}
+          className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+        >
+          <div className="flex flex-col rounded-xl border border-[--border-subtle] bg-white p-4 transition-all duration-200 hover:border-[--border-hover] hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
           {/* Icon + Title */}
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
@@ -105,6 +101,28 @@ export function ProjectCard({ id, title, status, createdAt }: ProjectCardProps) 
             </div>
           </div>
 
+          {activeRun && activeRun.status !== "completed" && (
+            <div className="mt-4 rounded-lg bg-[--surface]/70 px-3 py-2.5">
+              <div className="flex items-center justify-between text-[10px] text-[--text-muted]">
+                <span className="capitalize">{activeRun.stage.replaceAll("_", " ")}</span>
+                <span className="font-mono tabular-nums">{activeRun.progress}%</span>
+              </div>
+              <div
+                className="mt-1.5 h-1 overflow-hidden rounded-full bg-white"
+                role="progressbar"
+                aria-label={t("runProgress")}
+                aria-valuenow={activeRun.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className={`h-full rounded-full ${activeRun.status === "failed" ? "bg-destructive" : "bg-primary"}`}
+                  style={{ width: `${activeRun.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Footer: status + arrow */}
           <div className="mt-4 flex items-center justify-between border-t border-[--border-subtle] pt-3">
             <span
@@ -117,8 +135,18 @@ export function ProjectCard({ id, title, status, createdAt }: ProjectCardProps) 
               <ArrowUpRight className="h-3 w-3" />
             </div>
           </div>
-        </div>
-      </Link>
+          </div>
+        </Link>
+        <button
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-lg text-[--text-muted] opacity-60 outline-none transition-all hover:bg-red-50 hover:text-red-500 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-300 group-hover:opacity-100"
+          aria-label={`${tc("delete")} ${title}`}
+          title={tc("delete")}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {/* Delete confirmation dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

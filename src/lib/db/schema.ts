@@ -252,6 +252,13 @@ export const shots = pgTable("shots", {
   musicCue: text("music_cue").default(""),
   costumeOverrides: text("costume_overrides").default(""),
   isStale: integer("is_stale").notNull().default(0),
+  isLocked: integer("is_locked").notNull().default(0),
+  qualityStatus: text("quality_status", {
+    enum: ["pending", "approved", "rejected"],
+  })
+    .notNull()
+    .default("pending"),
+  qualityNotes: text("quality_notes").default(""),
   status: text("status", {
     enum: ["pending", "generating", "completed", "failed"],
   })
@@ -411,41 +418,137 @@ export const promptAbTests = pgTable("prompt_ab_tests", {
     .$defaultFn(() => new Date()),
 });
 
-export const tasks = pgTable("tasks", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").references(() => projects.id, {
-    onDelete: "cascade",
+export const modelProfiles = pgTable(
+  "model_profiles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    capability: text("capability", {
+      enum: ["text", "image", "video"],
+    }).notNull(),
+    protocol: text("protocol").notNull(),
+    baseUrl: text("base_url").notNull(),
+    modelId: text("model_id").notNull(),
+    encryptedCredentials: text("encrypted_credentials").notNull(),
+    isDefault: integer("is_default").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at").notNull().$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    ownerCapabilityIdx: index("model_profiles_owner_capability_idx").on(
+      table.userId,
+      table.capability,
+    ),
   }),
-  type: text("type", {
-    enum: [
-      "script_outline",
-      "script_parse",
-      "character_extract",
-      "character_image",
-      "shot_split",
-      "frame_generate",
-      "video_generate",
-      "video_assemble",
-    ],
-  }).notNull(),
-  status: text("status", {
-    enum: ["pending", "running", "completed", "failed"],
-  })
-    .notNull()
-    .default("pending"),
-  payload: jsonb("payload"),
-  result: jsonb("result"),
-  error: text("error"),
-  retries: integer("retries").notNull().default(0),
-  maxRetries: integer("max_retries").notNull().default(3),
-  createdAt: timestamp("created_at")
-    .notNull()
-    .$defaultFn(() => new Date()),
-  scheduledAt: timestamp("scheduled_at"),
-  episodeId: text("episode_id").references(() => episodes.id, {
-    onDelete: "cascade",
+);
+
+export const generationRuns = pgTable(
+  "generation_runs",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    episodeId: text("episode_id").references(() => episodes.id, {
+      onDelete: "cascade",
+    }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mode: text("mode", { enum: ["guided", "professional"] })
+      .notNull()
+      .default("guided"),
+    status: text("status", {
+      enum: ["pending", "running", "completed", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("pending"),
+    currentStage: text("current_stage").notNull().default("preflight"),
+    progress: integer("progress").notNull().default(0),
+    estimatedCost: text("estimated_cost"),
+    actualCost: text("actual_cost"),
+    modelProfileId: text("model_profile_id").references(() => modelProfiles.id, {
+      onDelete: "set null",
+    }),
+    config: jsonb("config"),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at").notNull().$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    projectCreatedIdx: index("generation_runs_project_created_idx").on(
+      table.projectId,
+      table.createdAt,
+    ),
+    ownerStatusIdx: index("generation_runs_owner_status_idx").on(
+      table.userId,
+      table.status,
+    ),
   }),
-});
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    episodeId: text("episode_id").references(() => episodes.id, {
+      onDelete: "cascade",
+    }),
+    runId: text("run_id").references(() => generationRuns.id, {
+      onDelete: "cascade",
+    }),
+    type: text("type", {
+      enum: [
+        "script_outline",
+        "script_parse",
+        "character_extract",
+        "character_image",
+        "shot_split",
+        "frame_generate",
+        "video_generate",
+        "video_assemble",
+      ],
+    }).notNull(),
+    stage: text("stage").notNull().default("generation"),
+    stageOrder: integer("stage_order").notNull().default(0),
+    status: text("status", {
+      enum: ["pending", "running", "completed", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("pending"),
+    progress: integer("progress").notNull().default(0),
+    payload: jsonb("payload"),
+    result: jsonb("result"),
+    error: text("error"),
+    errorCode: text("error_code"),
+    retries: integer("retries").notNull().default(0),
+    maxRetries: integer("max_retries").notNull().default(3),
+    idempotencyKey: text("idempotency_key"),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    heartbeatAt: timestamp("heartbeat_at"),
+    cancelRequestedAt: timestamp("cancel_requested_at"),
+    createdAt: timestamp("created_at").notNull().$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at").notNull().$defaultFn(() => new Date()),
+    scheduledAt: timestamp("scheduled_at"),
+  },
+  (table) => ({
+    idempotencyIdx: uniqueIndex("tasks_idempotency_idx").on(table.idempotencyKey),
+    runStatusIdx: index("tasks_run_status_idx").on(
+      table.runId,
+      table.stageOrder,
+      table.status,
+    ),
+    queueIdx: index("tasks_queue_idx").on(table.status, table.scheduledAt),
+  }),
+);
 
 export const agents = pgTable(
   "agents",

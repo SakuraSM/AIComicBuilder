@@ -31,7 +31,7 @@ import { eq, asc, and, lt, gt, desc, or, isNull, inArray } from "drizzle-orm";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 import path from "path";
 import { id as genId } from "@/lib/id";
-import { enqueueTask } from "@/lib/task-queue";
+import { assertPersistableTaskPayload, enqueueTask } from "@/lib/task-queue";
 import type { TaskType } from "@/lib/task-queue";
 import { buildScriptParsePrompt } from "@/lib/ai/prompts/script-parse";
 import { buildScriptGeneratePrompt } from "@/lib/ai/prompts/script-generate";
@@ -193,10 +193,11 @@ export async function POST(
     action: string;
     payload?: Record<string, unknown>;
     modelConfig?: ModelConfig;
+    modelProfileId?: string;
     episodeId?: string;
   };
 
-  const { action, payload, modelConfig, episodeId } = body;
+  const { action, payload, modelConfig, modelProfileId, episodeId } = body;
   console.log(`[Generate] action=${action}, projectId=${projectId}, episodeId=${episodeId || "none"}`);
 
   if (action === "script_outline") {
@@ -299,12 +300,40 @@ export async function POST(
     return handleSingleShotRefImageGenerateAll(projectId, userId, payload, modelConfig);
   }
 
-  // Image/video generation - keep in task queue
+  const queuedTaskTypes = new Set<NonNullable<TaskType>>([
+    "script_outline",
+    "script_parse",
+    "character_extract",
+    "character_image",
+    "shot_split",
+    "frame_generate",
+    "video_generate",
+    "video_assemble",
+  ]);
+  if (!queuedTaskTypes.has(action as NonNullable<TaskType>)) {
+    return NextResponse.json({ error: "Unknown generation action" }, { status: 400 });
+  }
+
+  // Compatibility seam: persisted tasks only contain a server-owned model
+  // profile reference. Legacy browser credentials remain request-scoped.
+  const queuedPayload = { projectId, ...payload, modelProfileId, episodeId, userId };
+  try {
+    assertPersistableTaskPayload(queuedPayload);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid task payload" },
+      { status: 400 },
+    );
+  }
   const task = await enqueueTask({
     type: action as NonNullable<TaskType>,
     projectId,
-    payload: { projectId, ...payload, modelConfig, episodeId, userId },
+    payload: queuedPayload,
     ...(episodeId ? { episodeId } : {}),
+    idempotencyKey:
+      typeof payload?.idempotencyKey === "string"
+        ? payload.idempotencyKey
+        : undefined,
   });
 
   return NextResponse.json(task, { status: 201 });

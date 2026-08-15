@@ -1,3 +1,19 @@
-export { enqueueTask, completeTask, failTask, getTasksByProject } from "./queue";
+export {
+  enqueueTask,
+  completeTask,
+  failTask,
+  getTasksByProject,
+  getTasksByRun,
+  requestTaskCancellation,
+} from "./queue";
 export { registerHandlers, startWorker, stopWorker } from "./worker";
-export type { Task, TaskType, TaskHandler, TaskHandlerMap } from "./types";
+export { TASK_STATUS } from "./types";
+export { assertPersistableTaskPayload, containsSensitiveTaskData } from "./payload-security";
+export type {
+  EnqueueTaskInput,
+  Task,
+  TaskExecutionContext,
+  TaskHandler,
+  TaskHandlerMap,
+  TaskType,
+} from "./types";

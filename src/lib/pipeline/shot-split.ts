@@ -7,12 +7,14 @@ import { resolvePrompt } from "@/lib/ai/prompts/resolver";
 import { eq, and, or, isNull } from "drizzle-orm";
 import { id as genId } from "@/lib/id";
 import type { Task } from "@/lib/task-queue";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
 
 export async function handleShotSplit(task: Task) {
   const payload = task.payload as {
     projectId: string;
     screenplay: string;
     modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
     episodeId?: string;
     userId?: string;
   };
@@ -71,7 +73,12 @@ export async function handleShotSplit(task: Task) {
     projectId: payload.projectId,
   });
 
-  const ai = resolveAIProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveAIProvider(modelConfig);
   const performanceStyles = projectCharacters
     .filter(c => c.performanceStyle)
     .map(c => ({ name: c.name, performanceStyle: c.performanceStyle! }));
