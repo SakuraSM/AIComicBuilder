@@ -308,7 +308,7 @@ export function ShotDrawer({
                   onChange={(e) => setEditStartFrame(e.target.value)}
                   onBlur={() => patchShot({ startFrameDesc: editStartFrame })}
                   rows={2}
-                  placeholder={t("shot.sceneFramePrompt") || "场景帧提示词"}
+                  placeholder={t("shot.sceneFramePrompt")}
                   className="border-violet-200 bg-violet-50/30 text-sm"
                 />
               ) : (
@@ -344,7 +344,7 @@ export function ShotDrawer({
                 onChange={(e) => setEditCameraDirection(e.target.value)}
                 onBlur={() => patchShot({ cameraDirection: editCameraDirection })}
                 className="w-full rounded-xl border border-[--border-subtle] bg-white px-3 py-2 text-sm outline-none focus:border-primary/50"
-                placeholder="static / pan-left / zoom-in ..."
+                placeholder={t("shot.cameraDirectionPlaceholder")}
               />
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-1 text-xs text-[--text-muted]">

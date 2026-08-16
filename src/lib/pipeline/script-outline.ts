@@ -5,6 +5,7 @@ import type { ModelConfigPayload } from "@/lib/ai/provider-factory";
 import { resolvePrompt } from "@/lib/ai/prompts/resolver";
 import { eq } from "drizzle-orm";
 import type { Task } from "@/lib/task-queue";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
 
 export async function handleScriptOutline(task: Task) {
   const payload = task.payload as {
@@ -12,6 +13,7 @@ export async function handleScriptOutline(task: Task) {
     episodeId?: string;
     idea: string;
     modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
     userId?: string;
   };
 
@@ -22,7 +24,12 @@ export async function handleScriptOutline(task: Task) {
     projectId,
   });
 
-  const ai = resolveAIProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveAIProvider(modelConfig);
   const result = await ai.generateText(`创意构想：${idea}`, {
     systemPrompt,
     temperature: 0.7,

@@ -9,6 +9,8 @@ import { useLocale } from "next-intl";
 import { ArrowLeft, Loader2, Settings, Wand2 } from "lucide-react";
 import { LogoIcon } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { TaskCenter } from "@/components/workflow/task-center";
+import { WorkspaceModeToggle } from "@/components/workflow/workspace-mode-toggle";
 
 export default function ProjectLayout({
   children,
@@ -21,6 +23,8 @@ export default function ProjectLayout({
   const t = useTranslations("common");
   const locale = useLocale();
   const { project, loading, fetchProject } = useProjectStore();
+  const isStudioWorkspaceV2Enabled =
+    process.env.NEXT_PUBLIC_STUDIO_WORKSPACE_V2 !== "false";
 
   useEffect(() => {
     fetchProject(id);
@@ -39,6 +43,9 @@ export default function ProjectLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a className="skip-link" href="#main-content">
+        {t("skipToContent")}
+      </a>
       {/* Top bar */}
       <header className="sticky top-0 z-30 flex h-14 flex-shrink-0 items-center justify-between border-b border-[--border-subtle] bg-white/80 backdrop-blur-xl px-4 lg:px-6">
         <div className="flex items-center gap-3">
@@ -59,6 +66,8 @@ export default function ProjectLayout({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {isStudioWorkspaceV2Enabled && <WorkspaceModeToggle />}
+          {isStudioWorkspaceV2Enabled && <TaskCenter projectId={id} />}
           <Link
             href={`/${locale}/settings/prompts?scope=project&projectId=${id}`}
             title="项目提示词"
@@ -77,7 +86,9 @@ export default function ProjectLayout({
       </header>
 
       {/* Content */}
-      {children}
+      <div id="main-content" tabIndex={-1} className="flex min-h-0 flex-1 flex-col">
+        {children}
+      </div>
     </div>
   );
 }

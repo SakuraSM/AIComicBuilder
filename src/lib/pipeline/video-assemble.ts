@@ -4,6 +4,7 @@ import { eq, asc } from "drizzle-orm";
 import { assembleVideo } from "@/lib/video/ffmpeg";
 import { loadShotLegacyViewsBatch } from "@/lib/shot-asset-utils";
 import type { Task } from "@/lib/task-queue";
+import { persistGeneratedAsset, withMaterializedAssets } from "@/lib/storage";
 
 type TransitionType = "cut" | "dissolve" | "fade_in" | "fade_out" | "wipeleft" | "slideright" | "circleopen";
 
@@ -110,21 +111,56 @@ export async function handleVideoAssemble(task: Task) {
     : undefined;
   const creditsCard = { text: "Made with AIComicBuilder", duration: 2 };
 
-  const result = await assembleVideo({
-    videoPaths,
-    subtitles,
-    projectId: payload.projectId,
-    shotDurations: completedShots.map((s) => s.duration ?? 10),
-    transitions,
-    bgmPath,
-    titleCard,
-    creditsCard,
+  const materializedValues = bgmPath ? [...videoPaths, bgmPath] : videoPaths;
+  const result = await withMaterializedAssets({
+    values: materializedValues,
+    execute: (paths) => {
+      const materializedVideoPaths = paths.slice(0, videoPaths.length);
+      const materializedBgmPath = bgmPath ? paths[paths.length - 1] : undefined;
+      return assembleVideo({
+        videoPaths: materializedVideoPaths,
+        subtitles,
+        projectId: payload.projectId,
+        shotDurations: completedShots.map((shot) => shot.duration ?? 10),
+        transitions,
+        bgmPath: materializedBgmPath,
+        titleCard,
+        creditsCard,
+      });
+    },
   });
+  const outputAsset = await persistGeneratedAsset({
+    source: result.videoPath,
+    keyPrefix: `projects/${payload.projectId}/final`,
+    filename: episodeId ? `${episodeId}.mp4` : "project.mp4",
+  });
+  const subtitleAsset = result.srtPath
+    ? await persistGeneratedAsset({
+        source: result.srtPath,
+        keyPrefix: `projects/${payload.projectId}/final`,
+        filename: episodeId ? `${episodeId}.srt` : "project.srt",
+      })
+    : null;
 
   await db
     .update(projects)
-    .set({ status: "completed", updatedAt: new Date() })
+    .set({
+      status: "completed",
+      finalVideoUrl: outputAsset.url,
+      updatedAt: new Date(),
+    })
     .where(eq(projects.id, payload.projectId));
 
-  return { outputPath: result.videoPath, srtPath: result.srtPath };
+  if (episodeId) {
+    await db
+      .update(episodes)
+      .set({
+        status: "completed",
+        finalVideoUrl: outputAsset.url,
+        updatedAt: new Date(),
+      })
+      .where(eq(episodes.id, episodeId));
+  }
+
+  return { video: outputAsset, subtitles: subtitleAsset };
 }

@@ -98,7 +98,7 @@ export function PromptEditor({ scope = "global", projectId, initialPromptKey }: 
           selectPrompt(autoKey);
         }
       } catch {
-        toast.error("Failed to load prompt templates");
+        toast.error(t("editor.loadFailed"));
       } finally {
         setLoading(false);
       }
@@ -182,7 +182,7 @@ export function PromptEditor({ scope = "global", projectId, initialPromptKey }: 
       clearEdits(selectedPromptKey);
       toast.success(t("editor.savedSuccess"));
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -200,14 +200,14 @@ export function PromptEditor({ scope = "global", projectId, initialPromptKey }: 
       clearEdits(selectedPromptKey);
       toast.success(t("editor.resetSuccess"));
     } catch {
-      toast.error("Reset failed");
+      toast.error(t("editor.resetFailed"));
     }
   };
 
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center text-[--text-muted]">
-        Loading...
+        {t("editor.loading")}
       </div>
     );
   }

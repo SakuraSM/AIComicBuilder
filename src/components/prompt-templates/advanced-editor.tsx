@@ -90,7 +90,7 @@ export function AdvancedEditor({ scope = "global", projectId }: AdvancedEditorPr
 
       await doSave();
     } catch {
-      toast.error("Validation failed");
+      toast.error(t("editor.validationFailed"));
       setSaving(false);
     }
   };
@@ -114,7 +114,7 @@ export function AdvancedEditor({ scope = "global", projectId }: AdvancedEditorPr
       setShowWarnings(false);
       toast.success(t("editor.savedSuccess"));
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -133,7 +133,7 @@ export function AdvancedEditor({ scope = "global", projectId }: AdvancedEditorPr
       setFullTextContent("");
       toast.success(t("editor.resetSuccess"));
     } catch {
-      toast.error("Reset failed");
+      toast.error(t("editor.resetFailed"));
     }
   };
 

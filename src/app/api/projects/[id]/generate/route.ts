@@ -31,7 +31,7 @@ import { eq, asc, and, lt, gt, desc, or, isNull, inArray } from "drizzle-orm";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 import path from "path";
 import { id as genId } from "@/lib/id";
-import { enqueueTask } from "@/lib/task-queue";
+import { assertPersistableTaskPayload, enqueueTask } from "@/lib/task-queue";
 import type { TaskType } from "@/lib/task-queue";
 import { buildScriptParsePrompt } from "@/lib/ai/prompts/script-parse";
 import { buildScriptGeneratePrompt } from "@/lib/ai/prompts/script-generate";
@@ -60,6 +60,10 @@ import {
 } from "@/lib/shot-asset-utils";
 import { buildRefImagePromptsRequest } from "@/lib/ai/prompts/ref-image-prompts";
 import { buildKeyframePromptsRequest } from "@/lib/ai/prompts/keyframe-prompts";
+import {
+  buildOverallStyleContext,
+  mergeOverallStyleWithVisualStyle,
+} from "@/lib/ai/project-style";
 
 export const maxDuration = 300;
 
@@ -189,10 +193,11 @@ export async function POST(
     action: string;
     payload?: Record<string, unknown>;
     modelConfig?: ModelConfig;
+    modelProfileId?: string;
     episodeId?: string;
   };
 
-  const { action, payload, modelConfig, episodeId } = body;
+  const { action, payload, modelConfig, modelProfileId, episodeId } = body;
   console.log(`[Generate] action=${action}, projectId=${projectId}, episodeId=${episodeId || "none"}`);
 
   if (action === "script_outline") {
@@ -295,12 +300,40 @@ export async function POST(
     return handleSingleShotRefImageGenerateAll(projectId, userId, payload, modelConfig);
   }
 
-  // Image/video generation - keep in task queue
+  const queuedTaskTypes = new Set<NonNullable<TaskType>>([
+    "script_outline",
+    "script_parse",
+    "character_extract",
+    "character_image",
+    "shot_split",
+    "frame_generate",
+    "video_generate",
+    "video_assemble",
+  ]);
+  if (!queuedTaskTypes.has(action as NonNullable<TaskType>)) {
+    return NextResponse.json({ error: "Unknown generation action" }, { status: 400 });
+  }
+
+  // Compatibility seam: persisted tasks only contain a server-owned model
+  // profile reference. Legacy browser credentials remain request-scoped.
+  const queuedPayload = { projectId, ...payload, modelProfileId, episodeId, userId };
+  try {
+    assertPersistableTaskPayload(queuedPayload);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid task payload" },
+      { status: 400 },
+    );
+  }
   const task = await enqueueTask({
     type: action as NonNullable<TaskType>,
     projectId,
-    payload: { projectId, ...payload, modelConfig, episodeId, userId },
+    payload: queuedPayload,
     ...(episodeId ? { episodeId } : {}),
+    idempotencyKey:
+      typeof payload?.idempotencyKey === "string"
+        ? payload.idempotencyKey
+        : undefined,
   });
 
   return NextResponse.json(task, { status: 201 });
@@ -428,14 +461,29 @@ async function handleScriptGenerate(
       .where(eq(projects.id, projectId));
   }
 
+  const [projectStyleForScript] = await db
+    .select({
+      overallStyle: projects.overallStyle,
+      worldSetting: projects.worldSetting,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  const scriptOverallStyleContext = buildOverallStyleContext(projectStyleForScript?.overallStyle);
+
   // === 智能体路由（流式）===
   const sgBoundAgent = await findBoundAgent(projectId, "script_generate");
   if (sgBoundAgent) {
     try {
       const outline = (payload?.outline as string) || "";
-      const agentPrompt = outline
+      const worldSettingText = projectStyleForScript?.worldSetting
+        ? `【世界观设定】\n${projectStyleForScript.worldSetting}`
+        : "";
+      const ideaText = outline
         ? `创意构想：${idea}\n\n故事大纲：${outline}`
         : `创意构想：${idea}`;
+      const agentPrompt = [scriptOverallStyleContext, worldSettingText, ideaText]
+        .filter(Boolean)
+        .join("\n\n");
       const agentStream = await callAgentStream(
         { platform: sgBoundAgent.platform as "bailian" | "dify" | "coze", appId: sgBoundAgent.appId, apiKey: sgBoundAgent.apiKey },
         agentPrompt,
@@ -496,9 +544,10 @@ async function handleScriptGenerate(
     ? `\n\n【故事大纲 - 请严格按照以下大纲结构展开剧本】\n${outline}\n\n`
     : "";
 
-  // Fetch world setting from project
+  // Fetch global project generation constraints.
+  const projForWorld = projectStyleForScript;
+  const overallStyleContext = scriptOverallStyleContext;
   let worldSettingContext = "";
-  const [projForWorld] = await db.select({ worldSetting: projects.worldSetting }).from(projects).where(eq(projects.id, projectId));
   if (projForWorld?.worldSetting) {
     worldSettingContext = `\n\n【世界观设定】\n${projForWorld.worldSetting}\n\n剧本必须与此世界观设定保持一致。\n\n`;
   }
@@ -509,7 +558,7 @@ async function handleScriptGenerate(
   const result = streamText({
     model,
     system: scriptGenerateSystem,
-    prompt: worldSettingContext + outlineContext + buildScriptGeneratePrompt(idea),
+    prompt: [overallStyleContext, worldSettingContext, outlineContext, buildScriptGeneratePrompt(idea)].filter(Boolean).join("\n\n"),
     temperature: 0.8,
     onFinish: async ({ text }) => {
       try {
@@ -1144,8 +1193,12 @@ async function handleShotSplitStream(
 `;
   }
 
-  // Fetch world setting and target duration from project
-  const [projData] = await db.select({ worldSetting: projects.worldSetting, targetDuration: projects.targetDuration }).from(projects).where(eq(projects.id, projectId));
+  // Fetch project-level generation constraints.
+  const [projData] = await db.select({
+    overallStyle: projects.overallStyle,
+    worldSetting: projects.worldSetting,
+    targetDuration: projects.targetDuration,
+  }).from(projects).where(eq(projects.id, projectId));
   let targetDuration = projData?.targetDuration || 0;
   if (episodeId) {
     const [epDur] = await db.select({ targetDuration: episodes.targetDuration }).from(episodes).where(eq(episodes.id, episodeId));
@@ -1198,7 +1251,8 @@ async function handleShotSplitStream(
       characterDescriptions,
       characterVisualHints,
       undefined,
-      characterPerformanceStyles.length > 0 ? characterPerformanceStyles : undefined
+      characterPerformanceStyles.length > 0 ? characterPerformanceStyles : undefined,
+      projData?.overallStyle || undefined
     );
 
     // Inject character relations (drives on-screen interaction framing)
@@ -1207,6 +1261,11 @@ async function handleShotSplitStream(
     // Inject world setting
     if (projData?.worldSetting) {
       prompt = `【世界观设定】\n${projData.worldSetting}\n\n所有镜头必须与此世界观设定保持一致。\n\n` + prompt;
+    }
+
+    const overallStyleContext = buildOverallStyleContext(projData?.overallStyle);
+    if (overallStyleContext) {
+      prompt = `${overallStyleContext}\n\n${prompt}`;
     }
 
     // Inject target duration
@@ -3456,6 +3515,10 @@ async function handleGenerateRefPrompts(
     ? await db.select({ script: episodes.script }).from(episodes).where(eq(episodes.id, episodeId))
     : await db.select({ script: projects.script }).from(projects).where(eq(projects.id, projectId));
   const script = scriptSource[0]?.script || "";
+  const [projectStyleForRef] = await db
+    .select({ overallStyle: projects.overallStyle })
+    .from(projects)
+    .where(eq(projects.id, projectId));
 
   const pickField = (label: string): string => {
     const re = new RegExp(`${label}[：:]\\s*(.+?)(?:\\n|$)`);
@@ -3471,13 +3534,17 @@ async function handleGenerateRefPrompts(
   // it carries real person names that trigger content filters at both
   // the text LLM (400) and the image API (400 invalid_request_error).
 
-  const visualStyle = [
+  const visualStyleFromScript = [
     metaVisualStyle,
     metaColorTone && `色彩基调：${metaColorTone}`,
     metaEra && `时代美学：${metaEra}`,
     metaMood && `氛围情绪：${metaMood}`,
     metaRatio && `画幅比例：${metaRatio}`,
   ].filter(Boolean).join("；");
+  const visualStyle = mergeOverallStyleWithVisualStyle(
+    projectStyleForRef?.overallStyle,
+    visualStyleFromScript
+  );
 
   // Load character relationships — drives on-screen interaction framing
   // when scene frames plan out the space for enemies / allies.
@@ -3814,19 +3881,27 @@ async function handleGenerateKeyframePrompts(
     ? await db.select({ script: episodes.script }).from(episodes).where(eq(episodes.id, episodeId))
     : await db.select({ script: projects.script }).from(projects).where(eq(projects.id, projectId));
   const script = scriptSource[0]?.script || "";
+  const [projectStyleForKeyframes] = await db
+    .select({ overallStyle: projects.overallStyle })
+    .from(projects)
+    .where(eq(projects.id, projectId));
 
   const pickField = (label: string): string => {
     const re = new RegExp(`${label}[：:]\\s*(.+?)(?:\\n|$)`);
     const m = script.match(re);
     return m?.[1]?.trim() || "";
   };
-  const visualStyle = [
+  const visualStyleFromScript = [
     pickField("视觉风格") || pickField("Visual Style"),
     pickField("色彩基调") && `色彩基调：${pickField("色彩基调")}`,
     pickField("时代美学") && `时代美学：${pickField("时代美学")}`,
     pickField("氛围情绪") && `氛围情绪：${pickField("氛围情绪")}`,
     pickField("画幅比例") && `画幅比例：${pickField("画幅比例")}`,
   ].filter(Boolean).join("；");
+  const visualStyle = mergeOverallStyleWithVisualStyle(
+    projectStyleForKeyframes?.overallStyle,
+    visualStyleFromScript
+  );
 
   // Load character relationships — drives on-screen interaction framing.
   // Enemies must face each other as live combatants, not background icons.

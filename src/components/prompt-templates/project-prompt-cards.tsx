@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api-fetch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Edit, RotateCcw, FileText } from "lucide-react";
+import { Loader2, Edit, RotateCcw, Palette } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 // ── Types ─────────────────────────────────────────────────
@@ -44,6 +44,29 @@ const CATEGORY_EMOJI: Record<string, string> = {
   frame: "🖼️",
   video: "🎥",
 };
+
+const OVERALL_STYLE_PRESETS = [
+  {
+    key: "comic",
+    content:
+      "默认生成漫画/国漫插画风格，清晰线稿，风格化角色比例，赛璐珞或国漫3D渲染质感，色彩明确，避免真人实拍摄影感。",
+  },
+  {
+    key: "anime",
+    content:
+      "日漫赛璐珞风格，干净线条，柔和高光，角色表情夸张但自然，背景有动画电影质感，避免照片真实感。",
+  },
+  {
+    key: "cinematic",
+    content:
+      "写实电影摄影风格，真实人物比例，胶片质感，电影级布光，高对比光影和自然镜头语言。",
+  },
+] as const;
+
+interface ProjectSettings {
+  useProjectPrompts?: number;
+  overallStyle?: string | null;
+}
 
 /** Strip "promptTemplates." prefix from registry nameKeys since t() is already scoped */
 function tKey(nameKey: string): string {
@@ -94,6 +117,9 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
   const [overrides, setOverrides] = useState<ProjectPromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
+  const [overallStyle, setOverallStyle] = useState("");
+  const [overallStyleDraft, setOverallStyleDraft] = useState("");
+  const [isSavingStyle, setIsSavingStyle] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   // Fetch registry + project overrides + project settings on mount
@@ -107,16 +133,18 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
       ]);
       const regData: RegistryEntry[] = await regResp.json();
       const overData: ProjectPromptTemplate[] = await overResp.json();
-      const projData = await projResp.json();
+      const projData = (await projResp.json()) as ProjectSettings;
       setRegistry(regData);
       setOverrides(overData);
       setEnabled(!!projData.useProjectPrompts);
+      setOverallStyle(projData.overallStyle ?? "");
+      setOverallStyleDraft(projData.overallStyle ?? "");
     } catch {
-      toast.error("Load failed");
+      toast.error(t("editor.loadDataFailed"));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     loadData();
@@ -159,9 +187,28 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
         toast.success(t("editor.resetSuccess"));
       }
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     }
   };
+
+  async function handleSaveOverallStyle() {
+    setIsSavingStyle(true);
+    try {
+      const value = overallStyleDraft.trim();
+      await apiFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overallStyle: value }),
+      });
+      setOverallStyle(value);
+      setOverallStyleDraft(value);
+      toast.success(t("project.overallStyleSaved"));
+    } catch {
+      toast.error(t("editor.saveFailed"));
+    } finally {
+      setIsSavingStyle(false);
+    }
+  }
 
   // Delete all project-level overrides for a promptKey
   async function handleUseGlobal(promptKey: string) {
@@ -181,7 +228,7 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
       setOverrides(overData);
       toast.success(t("editor.resetSuccess"));
     } catch {
-      toast.error("Failed");
+      toast.error(t("editor.resetFailed"));
     } finally {
       setDeletingKey(null);
     }
@@ -197,6 +244,79 @@ export function ProjectPromptCards({ projectId }: ProjectPromptCardsProps) {
 
   return (
     <div className="flex flex-col gap-5">
+      <section className="rounded-2xl border border-[--border-subtle] bg-white p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Palette className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-[--text-primary]">
+                {t("project.overallStyle")}
+              </h3>
+              <p className="mt-1 max-w-2xl text-xs leading-5 text-[--text-muted]">
+                {t("project.overallStyleDesc")}
+              </p>
+            </div>
+          </div>
+          {overallStyle && overallStyle === overallStyleDraft.trim() && (
+            <Badge variant="success" className="w-fit shrink-0">
+              {t("project.active")}
+            </Badge>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {OVERALL_STYLE_PRESETS.map((preset) => (
+            <Button
+              key={preset.key}
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setOverallStyleDraft(preset.content)}
+            >
+              {t(`project.overallStylePresets.${preset.key}` as Parameters<typeof t>[0])}
+            </Button>
+          ))}
+        </div>
+
+        <label className="mt-4 block text-xs font-medium text-[--text-secondary]" htmlFor="project-overall-style">
+          {t("project.overallStyleInput")}
+        </label>
+        <textarea
+          id="project-overall-style"
+          value={overallStyleDraft}
+          onChange={(event) => setOverallStyleDraft(event.target.value)}
+          placeholder={t("project.overallStylePlaceholder")}
+          className="mt-2 min-h-24 w-full resize-y rounded-xl border border-[--border-subtle] bg-[--surface] px-3 py-2 text-sm leading-6 text-[--text-primary] outline-none transition focus:border-primary focus:bg-white"
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-[--text-muted]">
+            {t("project.overallStyleHint")}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isSavingStyle || !overallStyleDraft}
+              onClick={() => setOverallStyleDraft("")}
+            >
+              {t("project.clearOverallStyle")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSavingStyle || overallStyleDraft.trim() === overallStyle}
+              onClick={handleSaveOverallStyle}
+            >
+              {isSavingStyle && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {t("project.saveOverallStyle")}
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Toggle header */}
       <div className="flex items-center justify-between rounded-2xl border border-[--border-subtle] bg-white p-4">
         <div className="flex flex-col gap-0.5">

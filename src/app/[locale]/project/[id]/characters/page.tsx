@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, use } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { Users, ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api-fetch";
 import { CharacterCard } from "@/components/editor/character-card";
 import { CharacterRelations } from "@/components/editor/character-relations";
@@ -42,19 +42,31 @@ export default function CharactersPage({
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
-    const [chars, eps] = await Promise.all([
+  const requestData = useCallback(() =>
+    Promise.all([
       apiFetch(`/api/projects/${projectId}/characters`).then((r) => r.json()),
       apiFetch(`/api/projects/${projectId}/episodes`).then((r) => r.json()),
-    ]);
+    ]) as Promise<[Character[], Episode[]]>, [projectId]);
+
+  const fetchData = useCallback(async () => {
+    const [chars, eps] = await requestData();
     setCharacters(chars);
     setEpisodes(eps);
     setLoading(false);
-  }, [projectId]);
+  }, [requestData]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let active = true;
+    requestData().then(([chars, eps]) => {
+      if (!active) return;
+      setCharacters(chars);
+      setEpisodes(eps);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [requestData]);
 
   const mainCharacters = useMemo(
     () => characters.filter((c) => c.scope === "main"),

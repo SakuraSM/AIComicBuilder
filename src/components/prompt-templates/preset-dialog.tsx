@@ -54,10 +54,10 @@ export function PresetDialog({ open, onOpenChange, promptKey }: PresetDialogProp
         setPresets(filtered);
       })
       .catch(() => {
-        toast.error("Failed to load presets");
+        toast.error(t("presets.loadFailed"));
       })
       .finally(() => setLoading(false));
-  }, [open, promptKey]);
+  }, [open, promptKey, t]);
 
   const refreshOverrides = async () => {
     const resp = await apiFetch("/api/prompt-templates");
@@ -78,7 +78,7 @@ export function PresetDialog({ open, onOpenChange, promptKey }: PresetDialogProp
       toast.success(t("applySuccess"));
       onOpenChange(false);
     } catch {
-      toast.error("Failed to apply preset");
+      toast.error(t("presets.applyFailed"));
     } finally {
       setApplyingId(null);
     }
@@ -94,7 +94,7 @@ export function PresetDialog({ open, onOpenChange, promptKey }: PresetDialogProp
       setPresets((prev) => prev.filter((p) => p.id !== preset.id));
       toast.success(t("deleteSuccess"));
     } catch {
-      toast.error("Failed to delete preset");
+      toast.error(t("presets.deleteFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -120,13 +120,13 @@ export function PresetDialog({ open, onOpenChange, promptKey }: PresetDialogProp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, promptKey, slots }),
       });
-      if (!resp.ok) throw new Error("Save failed");
+      if (!resp.ok) throw new Error(t("presets.saveFailed"));
       const newPreset = await resp.json();
       setPresets((prev) => [...prev, { ...newPreset, isBuiltIn: false }]);
       setSaveName("");
       toast.success(t("saveSuccess"));
     } catch {
-      toast.error("Failed to save preset");
+      toast.error(t("presets.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -170,7 +170,7 @@ export function PresetDialog({ open, onOpenChange, promptKey }: PresetDialogProp
         <div className="flex flex-col gap-4">
           {loading ? (
             <div className="flex h-24 items-center justify-center text-sm text-[--text-muted]">
-              Loading...
+              {t("editor.loading")}
             </div>
           ) : (
             <>

@@ -7,6 +7,7 @@ import { resolvePrompt } from "@/lib/ai/prompts/resolver";
 import { and, eq } from "drizzle-orm";
 import { id as genId } from "@/lib/id";
 import type { Task } from "@/lib/task-queue";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
 
 interface ExtractedChar {
   name: string;
@@ -29,6 +30,7 @@ export async function handleCharacterExtract(task: Task) {
     projectId: string;
     screenplay: string;
     modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
     episodeId?: string;
     userId?: string;
   };
@@ -38,7 +40,12 @@ export async function handleCharacterExtract(task: Task) {
     projectId: payload.projectId,
   });
 
-  const ai = resolveAIProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveAIProvider(modelConfig);
   const result = await ai.generateText(
     buildCharacterExtractPrompt(payload.screenplay),
     { systemPrompt, temperature: 0.5 }

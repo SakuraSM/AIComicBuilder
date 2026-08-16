@@ -10,6 +10,9 @@ import { resolveSlotContents } from "@/lib/ai/prompts/resolver";
 import { eq, and, lt, desc } from "drizzle-orm";
 import type { Task } from "@/lib/task-queue";
 import { getActiveAsset, insertAssetVersion, patchAsset } from "@/lib/shot-asset-utils";
+import { normalizeOverallStyle } from "@/lib/ai/project-style";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
+import { persistGeneratedAsset, withMaterializedAssets } from "@/lib/storage";
 
 export async function handleFrameGenerate(task: Task) {
   const payload = task.payload as {
@@ -17,6 +20,7 @@ export async function handleFrameGenerate(task: Task) {
     projectId: string;
     userId?: string;
     modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
   };
 
   const [shot] = await db
@@ -25,6 +29,9 @@ export async function handleFrameGenerate(task: Task) {
     .where(eq(shots.id, payload.shotId));
 
   if (!shot) throw new Error("Shot not found");
+  if (shot.isLocked === 1) {
+    return { skipped: true, reason: "SHOT_LOCKED", shotId: shot.id };
+  }
 
   const projectCharacters = await db
     .select()
@@ -71,7 +78,12 @@ export async function handleFrameGenerate(task: Task) {
     .orderBy(desc(shots.sequence))
     .limit(1);
 
-  const ai = resolveImageProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveImageProvider(modelConfig);
 
   const userId = payload.userId ?? "";
   const projectId = payload.projectId;
@@ -80,13 +92,15 @@ export async function handleFrameGenerate(task: Task) {
 
   // Fetch color palette from project (or episode)
   let colorPalette = "";
+  let overallStyle = "";
   if (shot.episodeId) {
     const [episode] = await db.select().from(episodes).where(eq(episodes.id, shot.episodeId));
     if (episode?.colorPalette) colorPalette = episode.colorPalette;
   }
-  if (!colorPalette) {
+  if (!colorPalette || !overallStyle) {
     const [project] = await db.select().from(projects).where(eq(projects.id, payload.projectId));
     if (project?.colorPalette) colorPalette = project.colorPalette;
+    overallStyle = normalizeOverallStyle(project?.overallStyle);
   }
 
   // Build composition suffix
@@ -104,6 +118,9 @@ export async function handleFrameGenerate(task: Task) {
   }
   if (colorPalette) {
     compositionSuffix += `\n\nGLOBAL COLOR PALETTE (mandatory): ${colorPalette}. All frames must adhere to this color scheme.`;
+  }
+  if (overallStyle) {
+    compositionSuffix += `\n\nOVERALL VISUAL STYLE (highest priority): ${overallStyle}. Unless the user explicitly requested live-action or photoreal photography, do not convert the image into live-action photography.`;
   }
 
   // Build character height context for multi-character shots
@@ -168,31 +185,52 @@ export async function handleFrameGenerate(task: Task) {
     slotContents: frameFirstSlots,
   });
   if (compositionSuffix) firstFramePrompt += compositionSuffix;
-  const firstFramePath = await ai.generateImage(firstFramePrompt, {
-    quality: "hd",
-    referenceImages: charRefImages,
-  });
+  const { firstFramePath, lastFramePath } = await withMaterializedAssets({
+    values: charRefImages,
+    execute: async (materializedCharacterRefs) => {
+      const generatedFirstFrame = await ai.generateImage(firstFramePrompt, {
+        quality: "hd",
+        referenceImages: materializedCharacterRefs,
+      });
 
-  // Generate last frame
-  let lastFramePrompt = buildLastFramePrompt({
-    sceneDescription: shot.prompt || "",
-    endFrameDesc: endFrameDescText,
-    characterDescriptions,
-    firstFramePath,
-    slotContents: frameLastSlots,
+      let lastFramePrompt = buildLastFramePrompt({
+        sceneDescription: shot.prompt || "",
+        endFrameDesc: endFrameDescText,
+        characterDescriptions,
+        firstFramePath: generatedFirstFrame,
+        slotContents: frameLastSlots,
+      });
+      if (compositionSuffix) lastFramePrompt += compositionSuffix;
+      const generatedLastFrame = await ai.generateImage(lastFramePrompt, {
+        quality: "hd",
+        referenceImages: [generatedFirstFrame, ...materializedCharacterRefs],
+      });
+      return {
+        firstFramePath: generatedFirstFrame,
+        lastFramePath: generatedLastFrame,
+      };
+    },
   });
-  if (compositionSuffix) lastFramePrompt += compositionSuffix;
-  const lastFramePath = await ai.generateImage(lastFramePrompt, {
-    quality: "hd",
-    referenceImages: [firstFramePath, ...charRefImages],
-  });
+  const assetKeyPrefix = `projects/${payload.projectId}/shots/${payload.shotId}/frames`;
+  const [firstFrame, lastFrame] = await Promise.all([
+    persistGeneratedAsset({
+      source: firstFramePath,
+      keyPrefix: assetKeyPrefix,
+      filename: "first-frame.png",
+    }),
+    persistGeneratedAsset({
+      source: lastFramePath,
+      keyPrefix: assetKeyPrefix,
+      filename: "last-frame.png",
+    }),
+  ]);
 
   // Patch asset rows with the resulting file URLs (or insert if they didn't
   // exist yet — happens for shots whose keyframe asset prompts haven't been
   // generated by the LLM step).
   if (firstFrameAsset) {
     await patchAsset(firstFrameAsset.id, {
-      fileUrl: firstFramePath,
+      fileUrl: firstFrame.url,
       status: "completed",
     });
   } else {
@@ -201,14 +239,14 @@ export async function handleFrameGenerate(task: Task) {
       type: "first_frame",
       sequenceInType: 0,
       prompt: startFrameDescText,
-      fileUrl: firstFramePath,
+      fileUrl: firstFrame.url,
       status: "completed",
       characters: relevantChars.map((c) => c.name),
     });
   }
   if (lastFrameAsset) {
     await patchAsset(lastFrameAsset.id, {
-      fileUrl: lastFramePath,
+      fileUrl: lastFrame.url,
       status: "completed",
     });
   } else {
@@ -217,7 +255,7 @@ export async function handleFrameGenerate(task: Task) {
       type: "last_frame",
       sequenceInType: 0,
       prompt: endFrameDescText,
-      fileUrl: lastFramePath,
+      fileUrl: lastFrame.url,
       status: "completed",
       characters: relevantChars.map((c) => c.name),
     });
@@ -228,5 +266,5 @@ export async function handleFrameGenerate(task: Task) {
     .set({ status: "completed" })
     .where(eq(shots.id, payload.shotId));
 
-  return { firstFrame: firstFramePath, lastFrame: lastFramePath };
+  return { firstFrame, lastFrame };
 }

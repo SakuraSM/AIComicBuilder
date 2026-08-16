@@ -6,9 +6,15 @@ import { buildScriptParsePrompt } from "@/lib/ai/prompts/script-parse";
 import { resolvePrompt } from "@/lib/ai/prompts/resolver";
 import { eq } from "drizzle-orm";
 import type { Task } from "@/lib/task-queue";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
 
 export async function handleScriptParse(task: Task) {
-  const payload = task.payload as { projectId: string; modelConfig?: ModelConfigPayload; userId?: string };
+  const payload = task.payload as {
+    projectId: string;
+    modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
+    userId?: string;
+  };
   const [project] = await db
     .select()
     .from(projects)
@@ -23,7 +29,12 @@ export async function handleScriptParse(task: Task) {
     projectId: payload.projectId,
   });
 
-  const ai = resolveAIProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveAIProvider(modelConfig);
   const result = await ai.generateText(buildScriptParsePrompt(project.script), {
     systemPrompt,
     temperature: 0.7,
@@ -44,9 +55,12 @@ export async function handleScriptParse(task: Task) {
     payload: {
       projectId: payload.projectId,
       screenplay: result,
-      modelConfig: payload.modelConfig,
+      modelProfileId: payload.modelProfileId,
       userId: payload.userId,
     },
+    runId: task.runId ?? undefined,
+    stage: "characters",
+    idempotencyKey: task.runId ? `${task.runId}:characters:auto` : undefined,
   });
 
   return screenplay;

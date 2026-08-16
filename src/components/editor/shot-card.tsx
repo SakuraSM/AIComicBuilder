@@ -130,10 +130,7 @@ function StepRow({
   isNext?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen || isNext);
-
-  useEffect(() => {
-    if (isNext) setOpen(true);
-  }, [isNext]);
+  const isOpen = open || isNext;
 
   return (
     <div className={`rounded-xl border transition-colors ${
@@ -155,13 +152,13 @@ function StepRow({
         }`}>
           {label}
         </span>
-        {open ? (
+        {isOpen ? (
           <ChevronUp className="h-3.5 w-3.5 text-[--text-muted]" />
         ) : (
           <ChevronDown className="h-3.5 w-3.5 text-[--text-muted]" />
         )}
       </button>
-      {open && (
+      {isOpen && (
         <div className="border-t border-[--border-subtle] px-3 pb-3 pt-2.5">
           {children}
         </div>
@@ -441,7 +438,7 @@ export function ShotCard({
       if (!resp.ok) throw new Error(await resp.text());
       onUpdate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save assets");
+      toast.error(err instanceof Error ? err.message : t("shot.saveAssetsFailed"));
     }
   }
 
@@ -480,7 +477,7 @@ export function ShotCard({
       if (!resp.ok) throw new Error(await resp.text());
       onUpdate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to switch version");
+      toast.error(err instanceof Error ? err.message : t("shot.switchVersionFailed"));
     }
   }
 
@@ -711,7 +708,7 @@ export function ShotCard({
         method: "POST",
         body: form,
       });
-      if (!res.ok) throw new Error("Upload failed");
+      if (!res.ok) throw new Error(t("common.uploadFailed"));
       onUpdate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.generationFailed"));
@@ -791,7 +788,7 @@ export function ShotCard({
         <div
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/8 font-mono text-sm font-bold text-primary cursor-pointer hover:bg-primary/15 transition-colors"
           onClick={() => onOpenDrawer?.(id)}
-          title="Open editor"
+          title={t("shot.openEditor")}
         >
           {sequence}
         </div>
@@ -986,7 +983,7 @@ export function ShotCard({
                 onChange={(e) => setEditCameraDirection(e.target.value)}
                 onBlur={() => patchShot({ cameraDirection: editCameraDirection })}
                 className="w-full rounded-xl border border-[--border-subtle] bg-white px-3 py-2 text-sm outline-none focus:border-primary/50"
-                placeholder="static / pan-left / zoom-in ..."
+                placeholder={t("shot.cameraDirectionPlaceholder")}
               />
             </div>
             <Button
@@ -1091,7 +1088,7 @@ export function ShotCard({
                       </div>
                       {/* Character tags */}
                       <div className="flex items-center gap-1 flex-wrap border-t border-[--border-subtle] px-2 py-1.5">
-                        <span className="text-[9px] text-[--text-muted] shrink-0">{t("shot.refChars") || "Chars"}:</span>
+                        <span className="text-[9px] text-[--text-muted] shrink-0">{t("shot.refChars")}:</span>
                         {projectCharacters.map((char) => {
                           const isSelected = ref.characters?.includes(char.name);
                           return (
@@ -1154,7 +1151,7 @@ export function ShotCard({
                 </div>
               ) : (
                 <div className="flex items-center justify-center rounded-lg border border-dashed border-[--border-subtle] p-4 text-xs text-[--text-muted]">
-                  {t("shot.noRefImages") || "No reference image prompts yet"}
+                  {t("shot.noRefImages")}
                 </div>
               )}
 
@@ -1180,7 +1177,7 @@ export function ShotCard({
                 return !hasFirstPrompt && !hasLastPrompt && !hasFrameImage;
               })() ? (
                 <div className="flex items-center justify-center rounded-lg border border-dashed border-[--border-subtle] p-4 text-xs text-[--text-muted]">
-                  {t("shot.noKeyframes") || "暂无首尾帧提示词"}
+                  {t("shot.noKeyframes")}
                 </div>
               ) : (
               <div className="grid grid-cols-2 gap-2">

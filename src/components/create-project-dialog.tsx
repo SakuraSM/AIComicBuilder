@@ -64,7 +64,7 @@ export function CreateProjectDialog() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="My Epic Comic..."
+              placeholder={t("dashboard.projectTitlePlaceholder")}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                   handleCreate();

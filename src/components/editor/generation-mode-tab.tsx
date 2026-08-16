@@ -34,7 +34,7 @@ export function GenerationModeTab() {
       });
     } catch (err) {
       setProject(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to switch mode");
+      toast.error(err instanceof Error ? err.message : t("switchModeFailed"));
     }
   }
 

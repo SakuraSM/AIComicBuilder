@@ -3,20 +3,24 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { id as genId } from "@/lib/id";
-import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { getCurrentUserFromRequest } from "@/lib/auth/session";
 
 export async function GET(request: Request) {
-  const userId = getUserIdFromRequest(request);
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const allProjects = await db
     .select()
     .from(projects)
-    .where(eq(projects.userId, userId))
+    .where(eq(projects.userId, user.id))
     .orderBy(desc(projects.createdAt));
   return NextResponse.json(allProjects);
 }
 
 export async function POST(request: Request) {
-  const userId = getUserIdFromRequest(request);
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = (await request.json()) as { title: string; script?: string };
   const id = genId();
 
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
     .insert(projects)
     .values({
       id,
-      userId,
+      userId: user.id,
       title: body.title,
       script: body.script || "",
     })

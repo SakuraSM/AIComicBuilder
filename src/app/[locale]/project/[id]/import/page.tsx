@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, use, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, use } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
   Upload, FileText, Users, Layers, Sparkles,
-  Loader2, Check, X, ArrowLeft, AlertCircle,
+  Loader2, Check, X, ArrowLeft, AlertCircle, Clipboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-fetch";
 import { useModelStore } from "@/stores/model-store";
 import { useModelGuard } from "@/hooks/use-model-guard";
@@ -43,6 +45,7 @@ interface LogEntry {
 }
 
 type Step = 1 | 2 | 3 | 4;
+type InputMode = "file" | "text";
 
 const STEPS = [
   { num: 1 as Step, icon: FileText, label: "importStep.parse" },
@@ -60,7 +63,6 @@ export default function ImportPage({
   const locale = useLocale();
   const router = useRouter();
   const t = useTranslations("import");
-  const tc = useTranslations("common");
   const textGuard = useModelGuard("text");
   const getModelConfig = useModelStore((s) => s.getModelConfig);
 
@@ -73,7 +75,9 @@ export default function ImportPage({
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Step 0: Upload
+  const [inputMode, setInputMode] = useState<InputMode>("file");
   const [file, setFile] = useState<File | null>(null);
+  const [pastedText, setPastedText] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -140,6 +144,35 @@ export default function ImportPage({
     setFile(f);
   }, [t]);
 
+  async function runCharacterExtraction(text: string) {
+    setCurrentStep(2);
+    setStepStatus((prev) => ({ ...prev, 2: "running" }));
+    addLog(2, "running", "开始角色提取...");
+
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/import/characters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, modelConfig: getModelConfig() }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setCharacters(data.characters);
+      setRelationships(data.relationships || []);
+      const mainCount = data.characters.filter((c: ExtractedCharacter) => c.scope === "main").length;
+      const guestCount = data.characters.length - mainCount;
+      addLog(2, "done", `提取完成: ${mainCount} 个主角, ${guestCount} 个配角`);
+      setStepStatus((prev) => ({ ...prev, 2: "done" }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Extract failed";
+      addLog(2, "error", `角色提取失败: ${msg}`);
+      setStepStatus((prev) => ({ ...prev, 2: "error" }));
+    }
+  }
+
   // ── Step 1 + 2: Auto-run parse → character extraction ──
   async function startPipeline() {
     if (!file) return;
@@ -181,33 +214,30 @@ export default function ImportPage({
     }
 
     // Step 2: Character extraction (auto-continue)
-    setCurrentStep(2);
-    setStepStatus((prev) => ({ ...prev, 2: "running" }));
-    addLog(2, "running", "开始角色提取...");
+    await runCharacterExtraction(text);
+  }
 
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/import/characters`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, modelConfig: getModelConfig() }),
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setCharacters(data.characters);
-      setRelationships(data.relationships || []);
-      const mainCount = data.characters.filter((c: ExtractedCharacter) => c.scope === "main").length;
-      const guestCount = data.characters.length - mainCount;
-      addLog(2, "done", `提取完成: ${mainCount} 个主角, ${guestCount} 个配角`);
-      setStepStatus((prev) => ({ ...prev, 2: "done" }));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Extract failed";
-      addLog(2, "error", `角色提取失败: ${msg}`);
-      setStepStatus((prev) => ({ ...prev, 2: "error" }));
+  async function startTextPipeline() {
+    const text = pastedText.trim();
+    if (!text) {
+      toast.error(t("emptyText"));
       return;
     }
+    if (!textGuard()) return;
+
+    setHistoryMode(false);
+    setLogs([]);
+    setFullText(text);
+
+    await apiFetch(`/api/projects/${projectId}/import/logs`, { method: "DELETE" });
+
+    setCurrentStep(1);
+    setStepStatus((prev) => ({ ...prev, 1: "running" }));
+    addLog(1, "running", "读取粘贴文本...");
+    addLog(1, "done", `文本读取完成，共 ${text.length} 字`);
+    setStepStatus((prev) => ({ ...prev, 1: "done" }));
+
+    await runCharacterExtraction(text);
   }
 
   // ── Step 2 only: Retry character extraction ──
@@ -426,53 +456,105 @@ export default function ImportPage({
         {/* Upload area (only when no step started) */}
         {currentStep === 0 && !historyMode && (
           <div className="mx-auto w-full max-w-xl space-y-6">
-            {/* Drop zone */}
-            <div
-              className={`relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-colors ${
-                dragOver
-                  ? "border-primary bg-primary/5"
-                  : file
-                    ? "border-emerald-300 bg-emerald-50/50"
-                    : "border-[--border-subtle] bg-white"
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-              onClick={() => inputRef.current?.click()}
-            >
-              <input
-                ref={inputRef}
-                type="file"
-                accept={ACCEPTED}
-                className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
-              />
-              {file ? (
-                <div className="flex items-center gap-3">
-                  <FileText className="h-10 w-10 text-emerald-500" />
-                  <div>
-                    <p className="text-sm font-medium text-[--text-primary]">{file.name}</p>
-                    <p className="text-xs text-[--text-muted]">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    className="ml-2 flex h-6 w-6 items-center justify-center rounded-full hover:bg-black/5"
-                  >
-                    <X className="h-3.5 w-3.5 text-[--text-muted]" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Upload className="mb-3 h-10 w-10 text-[--text-muted]" />
-                  <p className="text-sm font-medium text-[--text-primary]">{t("dropHint")}</p>
-                  <p className="mt-1 text-xs text-[--text-muted]">{t("supportedFormats")}</p>
-                </>
-              )}
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setInputMode("file")}
+                className={`flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors ${
+                  inputMode === "file"
+                    ? "bg-primary text-white"
+                    : "text-[--text-muted] hover:bg-[--surface] hover:text-[--text-primary]"
+                }`}
+              >
+                <Upload className="h-4 w-4" />
+                {t("uploadFile")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("text")}
+                className={`flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors ${
+                  inputMode === "text"
+                    ? "bg-primary text-white"
+                    : "text-[--text-muted] hover:bg-[--surface] hover:text-[--text-primary]"
+                }`}
+              >
+                <Clipboard className="h-4 w-4" />
+                {t("pasteText")}
+              </button>
             </div>
 
+            {inputMode === "file" ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  className={`relative flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-colors ${
+                    dragOver
+                      ? "border-primary bg-primary/5"
+                      : file
+                        ? "border-emerald-300 bg-emerald-50/50"
+                        : "border-[--border-subtle] bg-white"
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    accept={ACCEPTED}
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+                  />
+                  {file ? (
+                    <span className="flex items-center gap-3">
+                      <FileText className="h-10 w-10 text-emerald-500" />
+                      <span className="text-left">
+                        <span className="block text-sm font-medium text-[--text-primary]">{file.name}</span>
+                        <span className="block text-xs text-[--text-muted]">{(file.size / 1024).toFixed(1)} KB</span>
+                      </span>
+                    </span>
+                  ) : (
+                    <>
+                      <Upload className="mb-3 h-10 w-10 text-[--text-muted]" />
+                      <span className="text-sm font-medium text-[--text-primary]">{t("dropHint")}</span>
+                      <span className="mt-1 text-xs text-[--text-muted]">{t("supportedFormats")}</span>
+                    </>
+                  )}
+                </button>
+                {file && (
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-[--text-muted] shadow-sm transition-colors hover:bg-white hover:text-[--text-primary]"
+                    aria-label={t("removeFile")}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-[--border-subtle] bg-white p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <Label htmlFor="script-text">{t("scriptText")}</Label>
+                  <span className="text-xs text-[--text-muted]">
+                    {pastedText.trim().length} {t("charactersCount")}
+                  </span>
+                </div>
+                <Textarea
+                  id="script-text"
+                  value={pastedText}
+                  onChange={(event) => setPastedText(event.target.value)}
+                  placeholder={t("pastePlaceholder")}
+                  className="min-h-[280px] resize-y"
+                />
+                <p className="mt-2 text-xs text-[--text-muted]">{t("pasteHint")}</p>
+              </div>
+            )}
+
             <Button
-              onClick={startPipeline}
-              disabled={!file}
+              onClick={inputMode === "file" ? startPipeline : startTextPipeline}
+              disabled={inputMode === "file" ? !file : !pastedText.trim()}
               className="w-full rounded-xl"
               size="lg"
             >

@@ -71,6 +71,9 @@ export interface Shot {
   qualityScore?: number;
   qualityIssues?: string[];
   isStale?: boolean;
+  isLocked?: number;
+  qualityStatus?: "pending" | "approved" | "rejected";
+  qualityNotes?: string;
   status: string;
   dialogues: Dialogue[];
   /** Active shot_assets rows for this shot, all types mixed. */
@@ -201,6 +204,9 @@ interface Project {
   status: string;
   finalVideoUrl: string | null;
   generationMode: "keyframe" | "reference";
+  overallStyle?: string | null;
+  colorPalette?: string | null;
+  worldSetting?: string | null;
   characters: Character[];
   shots: Shot[];
   versions: StoryboardVersion[];

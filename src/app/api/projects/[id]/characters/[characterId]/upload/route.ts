@@ -2,12 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { characters } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import fs from "node:fs";
-import path from "node:path";
-import { id as genId } from "@/lib/id";
 import { assertProjectOwnership } from "@/lib/assert-project-ownership";
-
-const uploadDir = process.env.UPLOAD_DIR || "./uploads";
+import { putObject } from "@/lib/storage";
 
 export async function POST(
   request: Request,
@@ -33,12 +29,12 @@ export async function POST(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = file.name.split(".").pop() || "png";
-  const filename = `${genId()}.${ext}`;
-  const dir = path.join(uploadDir, "characters");
-  fs.mkdirSync(dir, { recursive: true });
-  const filepath = path.join(dir, filename);
-  fs.writeFileSync(filepath, buffer);
+  const stored = await putObject({
+    buffer,
+    filename: file.name,
+    keyPrefix: `projects/${projectId}/characters/${characterId}`,
+    contentType: file.type || undefined,
+  });
 
   // Append to history
   let history: string[] = [];
@@ -48,13 +44,13 @@ export async function POST(
   if (character.referenceImage && !history.includes(character.referenceImage)) {
     history.push(character.referenceImage);
   }
-  if (!history.includes(filepath)) {
-    history.push(filepath);
+  if (!history.includes(stored.url)) {
+    history.push(stored.url);
   }
 
   const [updated] = await db
     .update(characters)
-    .set({ referenceImage: filepath, referenceImageHistory: JSON.stringify(history) })
+    .set({ referenceImage: stored.url, referenceImageHistory: JSON.stringify(history) })
     .where(eq(characters.id, characterId))
     .returning();
 

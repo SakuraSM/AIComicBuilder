@@ -104,7 +104,7 @@ export default function EpisodesPage({
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Merge failed");
+        throw new Error(err.error || t("mergeError"));
       }
       const data = await res.json();
       setMergedVideoUrl(data.videoUrl);
@@ -130,7 +130,7 @@ export default function EpisodesPage({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[--surface] p-6 pb-24 lg:pb-6">
+    <main className="flex-1 overflow-y-auto bg-[--surface] p-6 pb-24 lg:pb-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -358,6 +358,6 @@ export default function EpisodesPage({
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

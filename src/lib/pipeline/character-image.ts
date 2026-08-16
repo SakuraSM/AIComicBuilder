@@ -5,9 +5,15 @@ import type { ModelConfigPayload } from "@/lib/ai/provider-factory";
 import { buildCharacterTurnaroundPrompt } from "@/lib/ai/prompts/character-image";
 import { eq } from "drizzle-orm";
 import type { Task } from "@/lib/task-queue";
+import { resolveTaskModelConfig } from "@/lib/model-profiles";
 
 export async function handleCharacterImage(task: Task) {
-  const payload = task.payload as { characterId: string; modelConfig?: ModelConfigPayload };
+  const payload = task.payload as {
+    characterId: string;
+    modelConfig?: ModelConfigPayload;
+    modelProfileId?: string;
+    userId?: string;
+  };
 
   const [character] = await db
     .select()
@@ -18,7 +24,12 @@ export async function handleCharacterImage(task: Task) {
     throw new Error("Character not found");
   }
 
-  const ai = resolveImageProvider(payload.modelConfig);
+  const modelConfig = await resolveTaskModelConfig({
+    modelProfileId: payload.modelProfileId,
+    userId: payload.userId,
+    legacyModelConfig: payload.modelConfig,
+  });
+  const ai = resolveImageProvider(modelConfig);
   const prompt = buildCharacterTurnaroundPrompt(character.description || character.name, character.name);
 
   const imagePath = await ai.generateImage(prompt, {

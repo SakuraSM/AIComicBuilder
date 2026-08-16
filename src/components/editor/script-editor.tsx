@@ -160,7 +160,7 @@ export function ScriptEditor() {
       // Step 1: Auto-generate outline if empty (streaming)
       if (!currentOutline.trim()) {
         setGeneratingOutline(true);
-        toast.info(t("project.generatingOutlineFirst") || "Generating outline first...");
+        toast.info(t("project.generatingOutlineFirst"));
 
         const outlineResp = await apiFetch(`/api/projects/${project.id}/generate`, {
           method: "POST",
@@ -353,7 +353,7 @@ export function ScriptEditor() {
             />
           ) : (
             <div className="h-[55vh] max-h-[55vh] overflow-y-auto px-5 pb-4 pt-2 text-sm text-[--text-muted]">
-              {t("project.scriptPlaceholder") || "点击上方按钮生成剧本..."}
+              {t("project.scriptPlaceholder")}
             </div>
           )}
         </div>

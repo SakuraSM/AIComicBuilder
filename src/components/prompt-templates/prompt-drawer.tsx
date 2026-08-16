@@ -125,7 +125,7 @@ export function PromptDrawer({ open, onOpenChange, promptKeys: rawKeys, projectI
         setSelectedSlot({ promptKey: firstPrompt.key, slotKey: firstEditable.key });
       }
     } catch {
-      toast.error("Failed to load prompt data");
+      toast.error(t("editor.loadDataFailed"));
     } finally {
       setLoading(false);
     }
@@ -210,7 +210,7 @@ export function PromptDrawer({ open, onOpenChange, promptKeys: rawKeys, projectI
       setServerOverrides(overMap);
       toast.success(t("editor.savedSuccess"));
     } catch {
-      toast.error("Save failed");
+      toast.error(t("editor.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -234,7 +234,7 @@ export function PromptDrawer({ open, onOpenChange, promptKeys: rawKeys, projectI
       setServerOverrides(emptyOverrides);
       toast.success(t("editor.resetSuccess"));
     } catch {
-      toast.error("Reset failed");
+      toast.error(t("editor.resetFailed"));
     }
   };
 
@@ -289,7 +289,7 @@ export function PromptDrawer({ open, onOpenChange, promptKeys: rawKeys, projectI
 
         {loading ? (
           <div className="flex flex-1 items-center justify-center text-[--text-muted] text-sm">
-            Loading...
+            {t("editor.loading")}
           </div>
         ) : (
           <div className="flex flex-1 overflow-hidden">
