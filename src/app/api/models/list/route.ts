@@ -98,6 +98,10 @@ export async function POST(request: Request) {
     if (body.protocol === "seedance") {
       return NextResponse.json({
         models: [
+          { id: "doubao-seedance-2-5-260628", name: "Seedance 2.5" },
+          { id: "doubao-seedance-2-0-260128", name: "Seedance 2.0" },
+          { id: "doubao-seedance-2-0-fast-260128", name: "Seedance 2.0 Fast" },
+          { id: "doubao-seedance-2-0-mini-260615", name: "Seedance 2.0 Mini" },
           { id: "doubao-seedance-1-5-pro-251215", name: "Seedance 1.5 Pro" },
         ],
       });

@@ -11,6 +11,10 @@ export const MODEL_MAX_DURATIONS: Record<string, number> = {
   "doubao-seedance-1-5-pro-250528": 12,
   "doubao-seedance-1-5-pro-251215": 12,
   "doubao-seedance-1-0-lite-250528": 5,
+  "doubao-seedance-2-0-260128": 15,
+  "doubao-seedance-2-0-fast-260128": 15,
+  "doubao-seedance-2-0-mini-260615": 15,
+  "doubao-seedance-2-5-260628": 30,
   "wan2.7-t2v": 15,
   "wan2.7-r2v": 15,
   "wan2.6-t2v": 15,
@@ -25,6 +29,8 @@ const FAMILY_MAX_DURATIONS: [string, number][] = [
   ["veo", 8],
   ["kling-v3", 15],
   ["kling", 10],
+  ["seedance-2-5", 30],
+  ["seedance-2-0", 15],
   ["seedance-1-0", 5],
   ["seedance", 12],
   ["wan2.7", 15],
@@ -60,4 +66,50 @@ export function getModelMaxDuration(modelId?: string | null): number {
   }
 
   return DEFAULT_MAX_DURATION;
+}
+
+export interface SeedanceModelCapabilities {
+  maxDuration: number;
+  maxReferenceImages: number;
+  supportedResolutions: readonly ("480p" | "720p" | "1080p")[];
+  supportsOmniReferenceTaskType: boolean;
+}
+
+const DEFAULT_SEEDANCE_CAPABILITIES: SeedanceModelCapabilities = {
+  maxDuration: 12,
+  maxReferenceImages: 9,
+  supportedResolutions: ["480p", "720p", "1080p"],
+  supportsOmniReferenceTaskType: false,
+};
+
+/** Capability rules used by both the API and the free-creation UI. */
+export function getSeedanceModelCapabilities(
+  modelId?: string | null,
+): SeedanceModelCapabilities {
+  const normalizedModelId = modelId?.toLowerCase() ?? "";
+  if (normalizedModelId.includes("seedance-2-5")) {
+    return {
+      maxDuration: 30,
+      maxReferenceImages: 30,
+      supportedResolutions: ["480p", "720p"],
+      supportsOmniReferenceTaskType: true,
+    };
+  }
+
+  if (
+    normalizedModelId.includes("seedance-2-0-fast") ||
+    normalizedModelId.includes("seedance-2-0-mini")
+  ) {
+    return {
+      maxDuration: 15,
+      maxReferenceImages: 9,
+      supportedResolutions: ["480p", "720p"],
+      supportsOmniReferenceTaskType: false,
+    };
+  }
+
+  return {
+    ...DEFAULT_SEEDANCE_CAPABILITIES,
+    maxDuration: getModelMaxDuration(modelId),
+  };
 }

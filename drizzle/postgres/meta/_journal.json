@@ -36,6 +36,20 @@
       "when": 1786774748648,
       "tag": "0004_damp_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788155095460,
+      "tag": "0005_special_franklin_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788188470982,
+      "tag": "0006_tidy_hydra",
+      "breakpoints": true
     }
   ]
 }

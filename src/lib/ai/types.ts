@@ -21,26 +21,52 @@ export interface AIProvider {
   generateImage(prompt: string, options?: ImageOptions): Promise<string>;
 }
 
-// Keyframe mode: both firstFrame and lastFrame must be provided
+// Text mode: prompt only, without an image anchor.
+type TextVideoParams = {
+  firstFrame?: never;
+  lastFrame?: never;
+  initialImage?: never;
+  referenceImages?: never;
+};
+
+// First-frame mode: animate from one image without forcing an end frame.
+type FirstFrameVideoParams = {
+  firstFrame: string;
+  lastFrame?: never;
+  initialImage?: never;
+  referenceImages?: never;
+};
+
+// Keyframe mode: both firstFrame and lastFrame must be provided.
 type KeyframeVideoParams = {
   firstFrame: string;
   lastFrame: string;
   initialImage?: never;
+  referenceImages?: never;
 };
 
-// Reference image mode: a single initial image (local path or http URL)
+// Reference image mode: one or more images used as visual references.
 type ReferenceVideoParams = {
   firstFrame?: never;
   lastFrame?: never;
   initialImage: string;
+  referenceImages?: string[];
 };
 
-export type VideoGenerateParams = (KeyframeVideoParams | ReferenceVideoParams) & {
+export type VideoGenerateParams = (
+  | TextVideoParams
+  | FirstFrameVideoParams
+  | KeyframeVideoParams
+  | ReferenceVideoParams
+) & {
   prompt: string;
   duration: number;
   ratio: string;
-  /** Character/style reference images for consistency (e.g. Veo 3.1 referenceImages) */
-  referenceImages?: string[];
+  resolution?: "480p" | "720p" | "1080p";
+  generateAudio?: boolean;
+  watermark?: boolean;
+  seed?: number;
+  returnLastFrame?: boolean;
 };
 
 export interface VideoGenerateResult {
@@ -48,6 +74,13 @@ export interface VideoGenerateResult {
   lastFrameUrl?: string;
 }
 
+export interface VideoGenerateContext {
+  signal?: AbortSignal;
+}
+
 export interface VideoProvider {
-  generateVideo(params: VideoGenerateParams): Promise<VideoGenerateResult>;
+  generateVideo(
+    params: VideoGenerateParams,
+    context?: VideoGenerateContext,
+  ): Promise<VideoGenerateResult>;
 }

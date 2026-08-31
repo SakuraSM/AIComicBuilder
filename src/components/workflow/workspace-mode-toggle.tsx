@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, SlidersHorizontal } from "lucide-react";
+import { Compass, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,7 @@ import {
 const MODE_ICON = {
   [WORKSPACE_MODE.GUIDED]: Compass,
   [WORKSPACE_MODE.PROFESSIONAL]: SlidersHorizontal,
+  [WORKSPACE_MODE.FREE]: Sparkles,
 };
 
 export function WorkspaceModeToggle() {
