@@ -1,7 +1,8 @@
 FROM node:20.20.1-alpine AS base
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Keep the package manager aligned with package.json. Using pnpm@latest can
+# silently raise the Node.js requirement and break otherwise reproducible builds.
+RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
 # Install ffmpeg with libass for subtitle burn-in, and fonts for CJK subtitles
 RUN apk add --no-cache ffmpeg font-noto-cjk
@@ -11,7 +12,8 @@ FROM base AS deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # --- Build ---
 FROM deps AS builder
