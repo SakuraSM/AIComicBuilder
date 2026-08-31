@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 export const WORKSPACE_MODE = {
   GUIDED: "guided",
   PROFESSIONAL: "professional",
+  FREE: "free",
 } as const;
 
 export type WorkspaceMode =
@@ -20,6 +21,6 @@ export const useWorkspaceModeStore = create<WorkspaceModeStore>()(
       mode: WORKSPACE_MODE.GUIDED,
       setMode: (mode) => set({ mode }),
     }),
-    { name: "studio-workspace-mode", version: 1 },
+    { name: "studio-workspace-mode", version: 2 },
   ),
 );

@@ -1,19 +1,29 @@
-import type { VideoProvider, VideoGenerateParams, VideoGenerateResult } from "../types";
+import type {
+  VideoGenerateContext,
+  VideoProvider,
+  VideoGenerateParams,
+  VideoGenerateResult,
+} from "../types";
+import { getSeedanceModelCapabilities } from "@/lib/ai/model-limits";
 import fs from "node:fs";
 import path from "node:path";
 import { id as genId } from "@/lib/id";
 
 const DEFAULT_SEEDANCE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
-const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-1-5-pro-251215";
+const DEFAULT_SEEDANCE_MODEL = "doubao-seedance-2-0-260128";
 const DEFAULT_DURATION_SECONDS = 5;
-const DEFAULT_RATIO = "16:9";
+const DEFAULT_RATIO = "adaptive";
+const DEFAULT_RESOLUTION = "720p";
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_MAX_POLL_ATTEMPTS = 120;
-const MAX_REFERENCE_IMAGES = 9;
-const WATERMARK_ENABLED = false;
-const CAMERA_FIXED = false;
 
-type SeedanceTaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+type SeedanceTaskStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "expired";
 
 interface SeedanceImageContent {
   type: "image_url";
@@ -28,9 +38,17 @@ interface SeedanceTextContent {
 
 type SeedanceContent = SeedanceTextContent | SeedanceImageContent;
 
-interface SeedanceTaskRequest {
+export interface SeedanceTaskRequest {
   model: string;
   content: SeedanceContent[];
+  duration: number;
+  ratio: string;
+  resolution: "480p" | "720p" | "1080p";
+  generate_audio: boolean;
+  watermark: boolean;
+  return_last_frame: boolean;
+  omni_reference_task_type?: "reference";
+  seed?: number;
 }
 
 interface SeedanceTaskCreateResponse {
@@ -90,16 +108,61 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "").replace(/\/api\/v3$/, "");
 }
 
-function buildTextWithInlineOptions(params: VideoGenerateParams): string {
-  const duration = params.duration || DEFAULT_DURATION_SECONDS;
-  const ratio = params.ratio || DEFAULT_RATIO;
-  return [
-    params.prompt.trim(),
-    `--duration ${duration}`,
-    `--camerafixed ${CAMERA_FIXED}`,
-    `--watermark ${WATERMARK_ENABLED}`,
-    `--ratio ${ratio}`,
-  ].join(" ");
+function buildImageContent(
+  imagePathOrUrl: string,
+  role: NonNullable<SeedanceImageContent["role"]>,
+): SeedanceImageContent {
+  return {
+    type: "image_url",
+    image_url: { url: toImageUrl(imagePathOrUrl) },
+    role,
+  };
+}
+
+export function buildSeedanceTaskRequest(input: {
+  model: string;
+  params: VideoGenerateParams;
+}): SeedanceTaskRequest {
+  const { model, params } = input;
+  const prompt = params.prompt.trim();
+  const content: SeedanceContent[] = prompt
+    ? [{ type: "text", text: prompt }]
+    : [];
+
+  if (params.firstFrame) {
+    content.push(buildImageContent(params.firstFrame, "first_frame"));
+    if (params.lastFrame) {
+      content.push(buildImageContent(params.lastFrame, "last_frame"));
+    }
+  } else if (params.initialImage) {
+    const capabilities = getSeedanceModelCapabilities(model);
+    const referenceImages = [
+      params.initialImage,
+      ...(params.referenceImages ?? []),
+    ].slice(0, capabilities.maxReferenceImages);
+    content.push(
+      ...referenceImages.map((imagePathOrUrl) =>
+        buildImageContent(imagePathOrUrl, "reference_image"),
+      ),
+    );
+  }
+
+  const isReferenceTask = Boolean(params.initialImage);
+  const capabilities = getSeedanceModelCapabilities(model);
+  return {
+    model,
+    content,
+    duration: params.duration || DEFAULT_DURATION_SECONDS,
+    ratio: params.ratio || DEFAULT_RATIO,
+    resolution: params.resolution ?? DEFAULT_RESOLUTION,
+    generate_audio: params.generateAudio ?? false,
+    watermark: params.watermark ?? false,
+    return_last_frame: params.returnLastFrame ?? false,
+    ...(isReferenceTask && capabilities.supportsOmniReferenceTaskType
+      ? { omni_reference_task_type: "reference" as const }
+      : {}),
+    ...(params.seed === undefined ? {} : { seed: params.seed }),
+  };
 }
 
 function extractVideoResult(
@@ -126,6 +189,23 @@ function resolveFailedTaskMessage(result: SeedanceTaskQueryResponse): string {
   return result.error?.message ?? "unknown";
 }
 
+function waitForPollInterval(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+  }
+  return new Promise<void>((resolve, reject) => {
+    const handleAbort = () => {
+      clearTimeout(timeoutId);
+      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, DEFAULT_POLL_INTERVAL_MS);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
 export class SeedanceProvider implements VideoProvider {
   private apiKey: string;
   private baseUrl: string;
@@ -150,13 +230,14 @@ export class SeedanceProvider implements VideoProvider {
       params?.uploadDir || process.env.UPLOAD_DIR || "./uploads";
   }
 
-  async generateVideo(params: VideoGenerateParams): Promise<VideoGenerateResult> {
-    const body = "firstFrame" in params
-      ? this.buildKeyframeBody(params as VideoGenerateParams & { firstFrame: string; lastFrame: string })
-      : this.buildReferenceBody(params as VideoGenerateParams & { initialImage: string });
+  async generateVideo(
+    params: VideoGenerateParams,
+    context: VideoGenerateContext = {},
+  ): Promise<VideoGenerateResult> {
+    const body = buildSeedanceTaskRequest({ model: this.model, params });
 
     console.log(
-      `[Seedance] Submitting task: model=${body.model}, images=${body.content.length - 1}`
+      `[Seedance] Submitting task: model=${body.model}, inputs=${body.content.length}`
     );
 
     const submitResponse = await fetch(
@@ -168,6 +249,7 @@ export class SeedanceProvider implements VideoProvider {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: context.signal,
       }
     );
 
@@ -185,9 +267,12 @@ export class SeedanceProvider implements VideoProvider {
 
     console.log(`[Seedance] Task submitted: ${submitResult.id}`);
 
-    const { videoUrl, lastFrameUrl } = await this.pollForResult(submitResult.id);
+    const { videoUrl, lastFrameUrl } = await this.pollForResult(
+      submitResult.id,
+      context.signal,
+    );
 
-    const videoResponse = await fetch(videoUrl);
+    const videoResponse = await fetch(videoUrl, { signal: context.signal });
     if (!videoResponse.ok) {
       throw new Error(`Seedance video download failed: ${videoResponse.status}`);
     }
@@ -202,85 +287,70 @@ export class SeedanceProvider implements VideoProvider {
     return { filePath: filepath, lastFrameUrl };
   }
 
-  private buildKeyframeBody(
-    params: VideoGenerateParams & { firstFrame: string; lastFrame: string }
-  ): SeedanceTaskRequest {
-    return {
-      model: this.model,
-      content: [
-        { type: "text", text: buildTextWithInlineOptions(params) },
-        {
-          type: "image_url",
-          image_url: { url: toImageUrl(params.firstFrame) },
-          role: "first_frame",
-        },
-        {
-          type: "image_url",
-          image_url: { url: toImageUrl(params.lastFrame) },
-          role: "last_frame",
-        },
-      ],
-    };
+  private async pollForResult(
+    taskId: string,
+    signal?: AbortSignal,
+  ): Promise<{ videoUrl: string; lastFrameUrl?: string }> {
+    try {
+      for (let i = 0; i < DEFAULT_MAX_POLL_ATTEMPTS; i++) {
+        await waitForPollInterval(signal);
+
+        const response = await fetch(
+          `${this.baseUrl}/api/v3/contents/generations/tasks/${encodeURIComponent(taskId)}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+            signal,
+          },
+        );
+
+        if (!response.ok) {
+          console.warn(`[Seedance] Poll ${i + 1}: HTTP ${response.status}, retrying`);
+          continue;
+        }
+
+        const result = (await response.json()) as SeedanceTaskQueryResponse;
+        const status = result.status ?? "unknown";
+        console.log(`[Seedance] Poll ${i + 1}: status=${status}`);
+
+        if (status === "succeeded") {
+          const { videoUrl, lastFrameUrl } = extractVideoResult(result);
+          if (!videoUrl) {
+            throw new Error(`Seedance: succeeded but no video URL in response: ${JSON.stringify(result)}`);
+          }
+          return { videoUrl, lastFrameUrl };
+        }
+
+        if (status === "failed" || status === "cancelled" || status === "expired") {
+          throw new Error(`Seedance generation ${status}: ${resolveFailedTaskMessage(result)}`);
+        }
+      }
+
+      throw new Error("Seedance generation timed out after 10 minutes");
+    } catch (error) {
+      if (signal?.aborted) {
+        await this.cancelRemoteTask(taskId);
+      }
+      throw error;
+    }
   }
 
-  private buildReferenceBody(
-    params: VideoGenerateParams & { initialImage: string }
-  ): SeedanceTaskRequest {
-    const referenceImages = params.referenceImages?.length
-      ? params.referenceImages.slice(0, MAX_REFERENCE_IMAGES)
-      : [params.initialImage];
-
-    const imageContent = referenceImages.map<SeedanceImageContent>((imagePathOrUrl) => ({
-      type: "image_url",
-      image_url: { url: toImageUrl(imagePathOrUrl) },
-      role: referenceImages.length > 1 ? "reference_image" : undefined,
-    }));
-
-    return {
-      model: this.model,
-      content: [
-        { type: "text", text: buildTextWithInlineOptions(params) },
-        ...imageContent,
-      ],
-    };
-  }
-
-  private async pollForResult(taskId: string): Promise<{ videoUrl: string; lastFrameUrl?: string }> {
-    for (let i = 0; i < DEFAULT_MAX_POLL_ATTEMPTS; i++) {
-      await new Promise((resolve) => setTimeout(resolve, DEFAULT_POLL_INTERVAL_MS));
-
+  private async cancelRemoteTask(taskId: string): Promise<void> {
+    try {
       const response = await fetch(
         `${this.baseUrl}/api/v3/contents/generations/tasks/${encodeURIComponent(taskId)}`,
         {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-        }
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+        },
       );
-
       if (!response.ok) {
-        console.warn(`[Seedance] Poll ${i + 1}: HTTP ${response.status}, retrying`);
-        continue;
+        console.warn(`[Seedance] Failed to cancel task ${taskId}: HTTP ${response.status}`);
       }
-
-      const result = (await response.json()) as SeedanceTaskQueryResponse;
-      const status = result.status ?? "unknown";
-      console.log(`[Seedance] Poll ${i + 1}: status=${status}`);
-
-      if (status === "succeeded") {
-        const { videoUrl, lastFrameUrl } = extractVideoResult(result);
-        if (!videoUrl) {
-          throw new Error(`Seedance: succeeded but no video URL in response: ${JSON.stringify(result)}`);
-        }
-        return { videoUrl, lastFrameUrl };
-      }
-
-      if (status === "failed" || status === "cancelled") {
-        throw new Error(`Seedance generation ${status}: ${resolveFailedTaskMessage(result)}`);
-      }
+    } catch (error) {
+      console.warn(`[Seedance] Failed to cancel task ${taskId}:`, error);
     }
-
-    throw new Error("Seedance generation timed out after 10 minutes");
   }
 }

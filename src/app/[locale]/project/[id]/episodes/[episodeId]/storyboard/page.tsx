@@ -736,7 +736,7 @@ export default function EpisodeStoryboardPage() {
         onOpenChange={setIsPreflightOpen}
         projectId={project.id}
         episodeId={currentEpisodeId ?? undefined}
-        mode={workspaceMode}
+        mode={workspaceMode === "professional" ? "professional" : "guided"}
         stages={preflightStages}
         onRunStarted={() => setPreflightStages([])}
       />

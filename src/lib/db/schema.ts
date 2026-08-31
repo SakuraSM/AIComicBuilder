@@ -491,6 +491,51 @@ export const generationRuns = pgTable(
   }),
 );
 
+export const freeCreations = pgTable(
+  "free_creations",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    modelProfileId: text("model_profile_id").references(() => modelProfiles.id, {
+      onDelete: "set null",
+    }),
+    taskId: text("task_id"),
+    mode: text("mode", {
+      enum: ["text", "first_frame", "first_last_frame", "reference"],
+    }).notNull(),
+    status: text("status", {
+      enum: ["pending", "running", "succeeded", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("pending"),
+    prompt: text("prompt").notNull(),
+    modelId: text("model_id").notNull(),
+    protocol: text("protocol").notNull(),
+    videoUrl: text("video_url"),
+    lastFrameUrl: text("last_frame_url"),
+    config: jsonb("config"),
+    error: text("error"),
+    createdAt: timestamp("created_at").notNull().$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at").notNull().$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    projectCreatedIdx: index("free_creations_project_created_idx").on(
+      table.projectId,
+      table.createdAt,
+    ),
+    ownerStatusIdx: index("free_creations_owner_status_idx").on(
+      table.userId,
+      table.status,
+    ),
+    taskIdx: index("free_creations_task_idx").on(table.taskId),
+  }),
+);
+
 export const tasks = pgTable(
   "tasks",
   {
@@ -514,6 +559,7 @@ export const tasks = pgTable(
         "frame_generate",
         "video_generate",
         "video_assemble",
+        "free_video_generate",
       ],
     }).notNull(),
     stage: text("stage").notNull().default("generation"),

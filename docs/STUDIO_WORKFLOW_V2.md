@@ -5,6 +5,16 @@ Studio Workflow V2 is an incremental runtime. Existing projects, asset URLs and
 runs use `GenerationRun`, leased tasks, server-owned model profiles and logical
 asset references.
 
+The workspace also includes a free-creation mode for the official Seedance
+protocol. It bypasses the script/storyboard pipeline and supports prompt-only,
+first-frame, first-and-last-frame, and omni-reference image video generation.
+Image-driven modes may omit the prompt. Seedance 2.5 capabilities are resolved
+from the selected model (30-second output, up to 30 reference images, 480p/720p,
+and explicit omni-reference task typing). Free creations require a securely
+saved video model profile and are persisted per project in `free_creations`.
+The create endpoint returns after enqueueing a durable task; the UI polls the
+persisted history so a refresh does not lose progress.
+
 ## Deploy
 
 1. Back up PostgreSQL and apply the committed migrations:
@@ -63,6 +73,10 @@ asset references.
 ## API summary
 
 - `POST /api/projects/:id/runs/estimate` — dry-run task and cost estimate.
+- `GET|POST /api/projects/:id/free-creations` — list or enqueue direct Seedance
+  creations.
+- `DELETE /api/projects/:id/free-creations/:creationId` — request cancellation
+  locally and from the upstream Seedance task when it is already running.
 - `POST /api/projects/:id/runs` — create a persisted background run.
 - `GET /api/projects/:id/runs` — list project runs.
 - `GET /api/runs/:id` and `GET /api/runs/:id/events` — snapshot or SSE progress.
